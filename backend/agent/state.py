@@ -14,6 +14,10 @@ class AgentState(TypedDict):
     # 约束（由 parse_intent 节点填入）
     constraints: ConstraintSet
 
+    # 搜索候选池（search_candidates 节点填入，后续节点只读）
+    candidate_venues: list[dict]
+    candidate_restaurants: list[dict]
+
     # 规划阶段
     # Annotated + operator.add：每次 replan 追加新方案，不覆盖旧的
     candidate_plans: Annotated[list[Plan], operator.add]
