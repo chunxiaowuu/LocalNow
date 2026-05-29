@@ -1,0 +1,679 @@
+[
+  {
+    "id": "v001",
+    "name": "上海海洋水族馆",
+    "category": "aquarium",
+    "coordinates": {
+      "lat": 31.2397,
+      "lng": 121.5024
+    },
+    "address": "浦东新区陆家嘴环路1388号",
+    "distance_km": 4.5,
+    "price_per_person": 190,
+    "rating": 4.6,
+    "opening_hours": "09:00-21:00",
+    "kids_friendly": true,
+    "indoor": true,
+    "tags": [
+      "亲子",
+      "海洋生物",
+      "室内",
+      "互动展示",
+      "适合5岁以上",
+      "寓教于乐"
+    ]
+  },
+  {
+    "id": "v002",
+    "name": "奇迹荣耀亲子乐园",
+    "category": "kids_center",
+    "coordinates": {
+      "lat": 31.228,
+      "lng": 121.465
+    },
+    "address": "静安区恒丰路568号",
+    "distance_km": 2.1,
+    "price_per_person": 120,
+    "rating": 4.3,
+    "opening_hours": "10:00-20:00",
+    "kids_friendly": true,
+    "indoor": true,
+    "tags": [
+      "亲子乐园",
+      "室内",
+      "儿童游乐",
+      "蹦床",
+      "适合3-10岁",
+      "家庭"
+    ]
+  },
+  {
+    "id": "v003",
+    "name": "梦清园生态公园",
+    "category": "park",
+    "coordinates": {
+      "lat": 31.2109,
+      "lng": 121.4566
+    },
+    "address": "普陀区光复西路光复西路105号",
+    "distance_km": 3.2,
+    "price_per_person": 0,
+    "rating": 4.1,
+    "opening_hours": "06:00-18:00",
+    "kids_friendly": true,
+    "indoor": false,
+    "tags": [
+      "公园",
+      "户外",
+      "免费",
+      "亲子",
+      "散步",
+      "自然",
+      "适合周末"
+    ]
+  },
+  {
+    "id": "v004",
+    "name": "上海当代艺术博物馆",
+    "category": "museum",
+    "coordinates": {
+      "lat": 31.2156,
+      "lng": 121.4739
+    },
+    "address": "黄浦区花园港路200号",
+    "distance_km": 1.8,
+    "price_per_person": 60,
+    "rating": 4.5,
+    "opening_hours": "11:00-19:00",
+    "kids_friendly": false,
+    "indoor": true,
+    "tags": [
+      "展览",
+      "艺术",
+      "文化",
+      "网红打卡",
+      "朋友",
+      "文艺",
+      "当代艺术"
+    ]
+  },
+  {
+    "id": "v005",
+    "name": "谜案密室逃脱（南京西路店）",
+    "category": "escape_room",
+    "coordinates": {
+      "lat": 31.235,
+      "lng": 121.458
+    },
+    "address": "静安区南京西路1038号",
+    "distance_km": 2.5,
+    "price_per_person": 150,
+    "rating": 4.4,
+    "opening_hours": "12:00-22:00",
+    "kids_friendly": false,
+    "indoor": true,
+    "tags": [
+      "密室逃脱",
+      "朋友聚会",
+      "团队",
+      "刺激",
+      "沉浸式",
+      "适合4人",
+      "挑战"
+    ]
+  },
+  {
+    "id": "v006",
+    "name": "田子坊创意街区",
+    "category": "citywalk",
+    "coordinates": {
+      "lat": 31.21,
+      "lng": 121.468
+    },
+    "address": "徐汇区泰康路210弄",
+    "distance_km": 3.0,
+    "price_per_person": 0,
+    "rating": 4.2,
+    "opening_hours": "10:00-22:00",
+    "kids_friendly": false,
+    "indoor": false,
+    "tags": [
+      "citywalk",
+      "文艺",
+      "小吃",
+      "拍照",
+      "网红",
+      "朋友",
+      "逛街",
+      "创意"
+    ]
+  },
+  {
+    "id": "v007",
+    "name": "上海海洋水族馆",
+    "category": "aquarium",
+    "coordinates": {
+      "lat": 31.23,
+      "lng": 121.47
+    },
+    "address": "浦东新区丁香路328号",
+    "distance_km": 3.1,
+    "price_per_person": 100,
+    "rating": 4.4,
+    "opening_hours": "10:00-20:00",
+    "kids_friendly": true,
+    "indoor": true,
+    "tags": [
+      "亲子互动",
+      "海洋生物",
+      "室内不晒",
+      "适合5岁以上"
+    ]
+  },
+  {
+    "id": "v008",
+    "name": "徐家汇儿童乐园",
+    "category": "kids_center",
+    "coordinates": {
+      "lat": 31.21,
+      "lng": 121.45
+    },
+    "address": "徐汇区漕溪路150号",
+    "distance_km": 2.8,
+    "price_per_person": 80,
+    "rating": 4.5,
+    "opening_hours": "09:00-18:00",
+    "kids_friendly": true,
+    "indoor": true,
+    "tags": [
+      "儿童游乐",
+      "亲子乐园",
+      "室内活动",
+      "适合3-12岁"
+    ]
+  },
+  {
+    "id": "v009",
+    "name": "世纪公园",
+    "category": "park",
+    "coordinates": {
+      "lat": 31.24,
+      "lng": 121.5
+    },
+    "address": "浦东新区锦绣路1001号",
+    "distance_km": 4.5,
+    "price_per_person": 0,
+    "rating": 4.2,
+    "opening_hours": "06:00-21:00",
+    "kids_friendly": true,
+    "indoor": false,
+    "tags": [
+      "户外活动",
+      "儿童游乐场",
+      "自然景观",
+      "适合家庭"
+    ]
+  },
+  {
+    "id": "v010",
+    "name": "上海博物馆",
+    "category": "museum",
+    "coordinates": {
+      "lat": 31.23,
+      "lng": 121.46
+    },
+    "address": "黄浦区人民大道200号",
+    "distance_km": 2.3,
+    "price_per_person": 50,
+    "rating": 4.7,
+    "opening_hours": "09:00-18:00",
+    "kids_friendly": false,
+    "indoor": true,
+    "tags": [
+      "文化体验",
+      "知识普及",
+      "历史展览",
+      "团队研学"
+    ]
+  },
+  {
+    "id": "v011",
+    "name": "密室逃脱·谜境",
+    "category": "escape_room",
+    "coordinates": {
+      "lat": 31.22,
+      "lng": 121.48
+    },
+    "address": "静安区南京西路1517号",
+    "distance_km": 3.0,
+    "price_per_person": 120,
+    "rating": 4.3,
+    "opening_hours": "14:00-22:00",
+    "kids_friendly": false,
+    "indoor": true,
+    "tags": [
+      "团队挑战",
+      "解谜游戏",
+      "沉浸式体验",
+      "适合朋友"
+    ]
+  },
+  {
+    "id": "v012",
+    "name": "上海当代艺术展",
+    "category": "exhibition",
+    "coordinates": {
+      "lat": 31.25,
+      "lng": 121.49
+    },
+    "address": "徐汇区龙腾大道138号",
+    "distance_km": 2.9,
+    "price_per_person": 60,
+    "rating": 4.6,
+    "opening_hours": "10:00-18:30",
+    "kids_friendly": false,
+    "indoor": true,
+    "tags": [
+      "艺术欣赏",
+      "当代艺术",
+      "文化展览",
+      "适合情侣"
+    ]
+  },
+  {
+    "id": "v013",
+    "name": "武康路城市漫步",
+    "category": "citywalk",
+    "coordinates": {
+      "lat": 31.24,
+      "lng": 121.47
+    },
+    "address": "长宁区武康路100号",
+    "distance_km": 1.8,
+    "price_per_person": 0,
+    "rating": 4.5,
+    "opening_hours": "全天开放",
+    "kids_friendly": true,
+    "indoor": false,
+    "tags": [
+      "历史文化",
+      "城市探索",
+      "适合亲子",
+      "步行游览"
+    ]
+  },
+  {
+    "id": "v014",
+    "name": "上海自然博物馆",
+    "category": "museum",
+    "coordinates": {
+      "lat": 31.22,
+      "lng": 121.45
+    },
+    "address": "黄浦区杨高南路198号",
+    "distance_km": 2.7,
+    "price_per_person": 55,
+    "rating": 4.4,
+    "opening_hours": "09:00-17:30",
+    "kids_friendly": true,
+    "indoor": true,
+    "tags": [
+      "自然科普",
+      "儿童教育",
+      "互动展览",
+      "亲子游"
+    ]
+  },
+  {
+    "id": "v015",
+    "name": "环球港密室",
+    "category": "escape_room",
+    "coordinates": {
+      "lat": 31.26,
+      "lng": 121.51
+    },
+    "address": "静安区南京西路1888号",
+    "distance_km": 3.2,
+    "price_per_person": 130,
+    "rating": 4.2,
+    "opening_hours": "11:00-23:00",
+    "kids_friendly": false,
+    "indoor": true,
+    "tags": [
+      "团队解谜",
+      "沉浸式剧情",
+      "适合朋友",
+      "限时挑战"
+    ]
+  },
+  {
+    "id": "v016",
+    "name": "上海科技馆",
+    "category": "exhibition",
+    "coordinates": {
+      "lat": 31.24,
+      "lng": 121.48
+    },
+    "address": "浦东新区世纪大道2000号",
+    "distance_km": 4.0,
+    "price_per_person": 100,
+    "rating": 4.5,
+    "opening_hours": "09:30-17:00",
+    "kids_friendly": true,
+    "indoor": true,
+    "tags": [
+      "科技体验",
+      "儿童科普",
+      "互动展览",
+      "适合家庭"
+    ]
+  },
+  {
+    "id": "v017",
+    "name": "静安雕塑公园",
+    "category": "park",
+    "coordinates": {
+      "lat": 31.23,
+      "lng": 121.47
+    },
+    "address": "静安区康定路1000号",
+    "distance_km": 2.1,
+    "price_per_person": 0,
+    "rating": 4.3,
+    "opening_hours": "06:00-21:00",
+    "kids_friendly": false,
+    "indoor": false,
+    "tags": [
+      "艺术园林",
+      "户外散步",
+      "摄影胜地",
+      "适合情侣"
+    ]
+  },
+  {
+    "id": "v018",
+    "name": "M50创意园",
+    "category": "exhibition",
+    "coordinates": {
+      "lat": 31.25,
+      "lng": 121.49
+    },
+    "address": "长宁区普陀路188号",
+    "distance_km": 2.5,
+    "price_per_person": 80,
+    "rating": 4.6,
+    "opening_hours": "10:00-20:00",
+    "kids_friendly": false,
+    "indoor": true,
+    "tags": [
+      "艺术创作",
+      "创意展览",
+      "都市探索",
+      "适合朋友"
+    ]
+  },
+  {
+    "id": "v019",
+    "name": "上海海洋水族馆",
+    "category": "aquarium",
+    "coordinates": {
+      "lat": 31.23,
+      "lng": 121.47
+    },
+    "address": "浦东新区滨江大道2727号",
+    "distance_km": 3.1,
+    "price_per_person": 180,
+    "rating": 4.7,
+    "opening_hours": "09:00-17:30",
+    "kids_friendly": true,
+    "indoor": true,
+    "tags": [
+      "海洋生物",
+      "适合亲子",
+      "室内不晒",
+      "互动体验"
+    ]
+  },
+  {
+    "id": "v020",
+    "name": "徐汇儿童乐园",
+    "category": "kids_center",
+    "coordinates": {
+      "lat": 31.21,
+      "lng": 121.45
+    },
+    "address": "徐汇区衡山路100号",
+    "distance_km": 2.8,
+    "price_per_person": 98,
+    "rating": 4.5,
+    "opening_hours": "08:30-20:00",
+    "kids_friendly": true,
+    "indoor": true,
+    "tags": [
+      "亲子乐园",
+      "室内",
+      "儿童游乐",
+      "适合5岁以上"
+    ]
+  },
+  {
+    "id": "v021",
+    "name": "世纪公园",
+    "category": "park",
+    "coordinates": {
+      "lat": 31.25,
+      "lng": 121.5
+    },
+    "address": "浦东新区芳甸路1000号",
+    "distance_km": 4.2,
+    "price_per_person": 0,
+    "rating": 4.6,
+    "opening_hours": "06:00-21:00",
+    "kids_friendly": true,
+    "indoor": false,
+    "tags": [
+      "户外活动",
+      "适合家庭",
+      "绿植环绕",
+      "野餐好去处"
+    ]
+  },
+  {
+    "id": "v022",
+    "name": "上海博物馆",
+    "category": "museum",
+    "coordinates": {
+      "lat": 31.23,
+      "lng": 121.46
+    },
+    "address": "黄浦区人民大道200号",
+    "distance_km": 1.5,
+    "price_per_person": 70,
+    "rating": 4.8,
+    "opening_hours": "09:00-17:15",
+    "kids_friendly": true,
+    "indoor": true,
+    "tags": [
+      "历史文物",
+      "适合亲子",
+      "室内",
+      "文化教育"
+    ]
+  },
+  {
+    "id": "v023",
+    "name": "密室逃脱·谜境",
+    "category": "escape_room",
+    "coordinates": {
+      "lat": 31.24,
+      "lng": 121.48
+    },
+    "address": "静安区南京西路1111号",
+    "distance_km": 2.1,
+    "price_per_person": 150,
+    "rating": 4.3,
+    "opening_hours": "10:00-22:00",
+    "kids_friendly": false,
+    "indoor": true,
+    "tags": [
+      "团队挑战",
+      "解谜游戏",
+      "密室逃脱",
+      "适合朋友"
+    ]
+  },
+  {
+    "id": "v024",
+    "name": "M50艺术区",
+    "category": "exhibition",
+    "coordinates": {
+      "lat": 31.22,
+      "lng": 121.44
+    },
+    "address": "普陀区莫干山路50号",
+    "distance_km": 3.5,
+    "price_per_person": 80,
+    "rating": 4.6,
+    "opening_hours": "09:30-18:00",
+    "kids_friendly": false,
+    "indoor": true,
+    "tags": [
+      "艺术展览",
+      "创意空间",
+      "适合朋友",
+      "拍照打卡"
+    ]
+  },
+  {
+    "id": "v025",
+    "name": "武康路城市漫步",
+    "category": "citywalk",
+    "coordinates": {
+      "lat": 31.24,
+      "lng": 121.43
+    },
+    "address": "徐汇区武康路100号",
+    "distance_km": 2.9,
+    "price_per_person": 0,
+    "rating": 4.7,
+    "opening_hours": "08:00-18:00",
+    "kids_friendly": false,
+    "indoor": false,
+    "tags": [
+      "文化街区",
+      "历史建筑",
+      "适合朋友",
+      "文艺漫步"
+    ]
+  },
+  {
+    "id": "v026",
+    "name": "上海自然博物馆",
+    "category": "museum",
+    "coordinates": {
+      "lat": 31.23,
+      "lng": 121.47
+    },
+    "address": "静安区北京西路555号",
+    "distance_km": 1.8,
+    "price_per_person": 60,
+    "rating": 4.5,
+    "opening_hours": "09:00-17:00",
+    "kids_friendly": true,
+    "indoor": true,
+    "tags": [
+      "自然科学",
+      "亲子科普",
+      "室内",
+      "互动展览"
+    ]
+  },
+  {
+    "id": "v027",
+    "name": "环球港奇幻密室",
+    "category": "escape_room",
+    "coordinates": {
+      "lat": 31.25,
+      "lng": 121.49
+    },
+    "address": "静安区南京西路1888号",
+    "distance_km": 1.2,
+    "price_per_person": 160,
+    "rating": 4.4,
+    "opening_hours": "11:00-23:00",
+    "kids_friendly": false,
+    "indoor": true,
+    "tags": [
+      "沉浸式逃脱",
+      "团队协作",
+      "适合朋友",
+      "灯光秀"
+    ]
+  },
+  {
+    "id": "v028",
+    "name": "外滩夜景步道",
+    "category": "citywalk",
+    "coordinates": {
+      "lat": 31.23,
+      "lng": 121.46
+    },
+    "address": "黄浦区中山东一路1号",
+    "distance_km": 1.0,
+    "price_per_person": 0,
+    "rating": 4.9,
+    "opening_hours": "08:00-24:00",
+    "kids_friendly": false,
+    "indoor": false,
+    "tags": [
+      "标志性景观",
+      "夜景欣赏",
+      "适合情侣",
+      "城市灯光"
+    ]
+  },
+  {
+    "id": "v029",
+    "name": "长宁区儿童探险馆",
+    "category": "kids_center",
+    "coordinates": {
+      "lat": 31.27,
+      "lng": 121.42
+    },
+    "address": "长宁区长宁路300号",
+    "distance_km": 3.0,
+    "price_per_person": 100,
+    "rating": 4.6,
+    "opening_hours": "09:00-21:00",
+    "kids_friendly": true,
+    "indoor": true,
+    "tags": [
+      "儿童探险",
+      "亲子互动",
+      "室内",
+      "科学启蒙"
+    ]
+  },
+  {
+    "id": "v030",
+    "name": "龙华寺文化体验",
+    "category": "exhibition",
+    "coordinates": {
+      "lat": 31.26,
+      "lng": 121.45
+    },
+    "address": "浦东新区龙阳路1111号",
+    "distance_km": 4.0,
+    "price_per_person": 50,
+    "rating": 4.3,
+    "opening_hours": "08:30-17:00",
+    "kids_friendly": false,
+    "indoor": true,
+    "tags": [
+      "宗教文化",
+      "禅意体验",
+      "适合朋友",
+      "静心之旅"
+    ]
+  }
+]

@@ -1,0 +1,1462 @@
+[
+  {
+    "id": "r001",
+    "name": "外婆家（人民广场店）",
+    "cuisine": "杭帮菜",
+    "coordinates": {
+      "lat": 31.228,
+      "lng": 121.474
+    },
+    "address": "黄浦区西藏中路268号",
+    "distance_km": 0.8,
+    "price_per_person": 85,
+    "rating": 4.5,
+    "has_kids_menu": true,
+    "has_low_calorie_options": true,
+    "noise_level": "moderate",
+    "max_party_size": 8,
+    "available_slots": [
+      "17:00",
+      "18:30",
+      "19:00"
+    ],
+    "tags": [
+      "家庭聚餐",
+      "儿童菜单",
+      "清淡",
+      "杭帮菜",
+      "性价比",
+      "适合带娃"
+    ]
+  },
+  {
+    "id": "r002",
+    "name": "绿茶餐厅（南京西路店）",
+    "cuisine": "新中式",
+    "coordinates": {
+      "lat": 31.235,
+      "lng": 121.462
+    },
+    "address": "静安区南京西路1266号",
+    "distance_km": 2.1,
+    "price_per_person": 90,
+    "rating": 4.4,
+    "has_kids_menu": true,
+    "has_low_calorie_options": true,
+    "noise_level": "moderate",
+    "max_party_size": 10,
+    "available_slots": [
+      "17:00",
+      "17:30",
+      "18:00",
+      "18:30"
+    ],
+    "tags": [
+      "家庭",
+      "健康轻食",
+      "儿童友好",
+      "环境好",
+      "新中式",
+      "拍照"
+    ]
+  },
+  {
+    "id": "r003",
+    "name": "避风塘（静安店）",
+    "cuisine": "港式",
+    "coordinates": {
+      "lat": 31.231,
+      "lng": 121.459
+    },
+    "address": "静安区愚园路1107号",
+    "distance_km": 2.4,
+    "price_per_person": 120,
+    "rating": 4.3,
+    "has_kids_menu": false,
+    "has_low_calorie_options": false,
+    "noise_level": "lively",
+    "max_party_size": 12,
+    "available_slots": [
+      "17:30",
+      "18:00",
+      "19:30"
+    ],
+    "tags": [
+      "港式",
+      "朋友聚餐",
+      "热闹",
+      "炒菜",
+      "宵夜"
+    ]
+  },
+  {
+    "id": "r004",
+    "name": "鼎泰丰（新天地店）",
+    "cuisine": "台式",
+    "coordinates": {
+      "lat": 31.22,
+      "lng": 121.475
+    },
+    "address": "黄浦区马当路181号",
+    "distance_km": 1.5,
+    "price_per_person": 150,
+    "rating": 4.7,
+    "has_kids_menu": true,
+    "has_low_calorie_options": false,
+    "noise_level": "moderate",
+    "max_party_size": 8,
+    "available_slots": [
+      "17:00",
+      "17:30",
+      "19:00"
+    ],
+    "tags": [
+      "小笼包",
+      "台式",
+      "精致",
+      "家庭",
+      "儿童友好",
+      "老字号"
+    ]
+  },
+  {
+    "id": "r005",
+    "name": "霸王别姬私房菜",
+    "cuisine": "沪菜",
+    "coordinates": {
+      "lat": 31.218,
+      "lng": 121.47
+    },
+    "address": "徐汇区思南路45号",
+    "distance_km": 1.9,
+    "price_per_person": 180,
+    "rating": 4.6,
+    "has_kids_menu": true,
+    "has_low_calorie_options": true,
+    "noise_level": "quiet",
+    "max_party_size": 6,
+    "available_slots": [
+      "17:30",
+      "18:00"
+    ],
+    "tags": [
+      "私房菜",
+      "安静",
+      "家庭",
+      "健康",
+      "精致",
+      "适合聊天",
+      "小众"
+    ]
+  },
+  {
+    "id": "r006",
+    "name": "老吉士酒家",
+    "cuisine": "本帮菜",
+    "coordinates": {
+      "lat": 31.226,
+      "lng": 121.465
+    },
+    "address": "静安区天平路41号",
+    "distance_km": 1.6,
+    "price_per_person": 110,
+    "rating": 4.4,
+    "has_kids_menu": true,
+    "has_low_calorie_options": true,
+    "noise_level": "moderate",
+    "max_party_size": 10,
+    "available_slots": [
+      "17:00",
+      "18:00",
+      "18:30",
+      "19:00"
+    ],
+    "tags": [
+      "本帮菜",
+      "上海老味道",
+      "家庭",
+      "儿童菜单",
+      "性价比",
+      "地道"
+    ]
+  },
+  {
+    "id": "r007",
+    "name": "THE ROOF 空中餐厅",
+    "cuisine": "融合菜",
+    "coordinates": {
+      "lat": 31.233,
+      "lng": 121.478
+    },
+    "address": "黄浦区外滩27号6楼",
+    "distance_km": 2.0,
+    "price_per_person": 200,
+    "rating": 4.5,
+    "has_kids_menu": false,
+    "has_low_calorie_options": true,
+    "noise_level": "moderate",
+    "max_party_size": 8,
+    "available_slots": [
+      "18:00",
+      "18:30",
+      "19:00"
+    ],
+    "tags": [
+      "打卡",
+      "网红",
+      "外滩",
+      "朋友聚会",
+      "拍照",
+      "约会",
+      "景观餐厅"
+    ]
+  },
+  {
+    "id": "r008",
+    "name": "新荣记（静安店）",
+    "cuisine": "台州海鲜",
+    "coordinates": {
+      "lat": 31.234,
+      "lng": 121.456
+    },
+    "address": "静安区南京西路1788号",
+    "distance_km": 2.8,
+    "price_per_person": 250,
+    "rating": 4.8,
+    "has_kids_menu": false,
+    "has_low_calorie_options": true,
+    "noise_level": "quiet",
+    "max_party_size": 8,
+    "available_slots": [
+      "17:30",
+      "18:00"
+    ],
+    "tags": [
+      "海鲜",
+      "高端",
+      "朋友",
+      "庆祝",
+      "安静",
+      "精致",
+      "米其林推荐"
+    ]
+  },
+  {
+    "id": "r009",
+    "name": "老正兴",
+    "cuisine": "本帮菜",
+    "coordinates": {
+      "lat": 31.21,
+      "lng": 121.45
+    },
+    "address": "黄浦区南京东路123号",
+    "distance_km": 1.8,
+    "price_per_person": 80,
+    "rating": 4.5,
+    "has_kids_menu": true,
+    "has_low_calorie_options": true,
+    "noise_level": "lively",
+    "max_party_size": 10,
+    "available_slots": [
+      "12:00",
+      "13:00",
+      "14:00"
+    ],
+    "tags": [
+      "家庭聚餐",
+      "儿童友好",
+      "热闹",
+      "本帮菜",
+      "性价比"
+    ]
+  },
+  {
+    "id": "r010",
+    "name": "松风和光",
+    "cuisine": "日料",
+    "coordinates": {
+      "lat": 31.28,
+      "lng": 121.52
+    },
+    "address": "静安区南京西路456号",
+    "distance_km": 3.2,
+    "price_per_person": 180,
+    "rating": 4.7,
+    "has_kids_menu": false,
+    "has_low_calorie_options": false,
+    "noise_level": "quiet",
+    "max_party_size": 6,
+    "available_slots": [
+      "18:30",
+      "19:30",
+      "20:30"
+    ],
+    "tags": [
+      "情侣约会",
+      "安静",
+      "日料",
+      "精致套餐",
+      "环境优雅"
+    ]
+  },
+  {
+    "id": "r011",
+    "name": "金殿粤菜馆",
+    "cuisine": "粤菜",
+    "coordinates": {
+      "lat": 31.19,
+      "lng": 121.41
+    },
+    "address": "徐汇区淮海中路789号",
+    "distance_km": 2.1,
+    "price_per_person": 120,
+    "rating": 4.6,
+    "has_kids_menu": true,
+    "has_low_calorie_options": false,
+    "noise_level": "moderate",
+    "max_party_size": 8,
+    "available_slots": [
+      "12:30",
+      "13:30",
+      "14:30"
+    ],
+    "tags": [
+      "家庭聚餐",
+      "粤菜",
+      "适合聊天",
+      "商务宴请",
+      "环境大气"
+    ]
+  },
+  {
+    "id": "r012",
+    "name": "云味坊",
+    "cuisine": "素食",
+    "coordinates": {
+      "lat": 31.25,
+      "lng": 121.55
+    },
+    "address": "杨浦区国权路101号",
+    "distance_km": 2.8,
+    "price_per_person": 60,
+    "rating": 4.4,
+    "has_kids_menu": true,
+    "has_low_calorie_options": true,
+    "noise_level": "quiet",
+    "max_party_size": 4,
+    "available_slots": [
+      "11:00",
+      "12:00",
+      "13:00"
+    ],
+    "tags": [
+      "健康轻食",
+      "素食主义者",
+      "安静",
+      "环境清新",
+      "适合办公"
+    ]
+  },
+  {
+    "id": "r013",
+    "name": "蜀湘阁",
+    "cuisine": "川菜",
+    "coordinates": {
+      "lat": 31.15,
+      "lng": 121.38
+    },
+    "address": "虹口区四川北路112号",
+    "distance_km": 1.5,
+    "price_per_person": 90,
+    "rating": 4.2,
+    "has_kids_menu": false,
+    "has_low_calorie_options": false,
+    "noise_level": "lively",
+    "max_party_size": 12,
+    "available_slots": [
+      "17:00",
+      "18:00",
+      "19:00"
+    ],
+    "tags": [
+      "朋友聚会",
+      "川菜",
+      "热闹",
+      "辣味十足",
+      "适合聚餐"
+    ]
+  },
+  {
+    "id": "r014",
+    "name": "绿茶亭",
+    "cuisine": "台式",
+    "coordinates": {
+      "lat": 31.3,
+      "lng": 121.48
+    },
+    "address": "浦东新区张江路200号",
+    "distance_km": 4.0,
+    "price_per_person": 75,
+    "rating": 4.5,
+    "has_kids_menu": true,
+    "has_low_calorie_options": true,
+    "noise_level": "moderate",
+    "max_party_size": 6,
+    "available_slots": [
+      "12:00",
+      "13:00",
+      "14:00"
+    ],
+    "tags": [
+      "家庭聚餐",
+      "台菜",
+      "健康轻食",
+      "适合办公",
+      "环境舒适"
+    ]
+  },
+  {
+    "id": "r015",
+    "name": "枫叶西餐厅",
+    "cuisine": "西餐",
+    "coordinates": {
+      "lat": 31.23,
+      "lng": 121.5
+    },
+    "address": "静安区陕西北路301号",
+    "distance_km": 3.5,
+    "price_per_person": 200,
+    "rating": 4.6,
+    "has_kids_menu": false,
+    "has_low_calorie_options": false,
+    "noise_level": "quiet",
+    "max_party_size": 4,
+    "available_slots": [
+      "19:00",
+      "20:00",
+      "21:00"
+    ],
+    "tags": [
+      "约会",
+      "西餐",
+      "安静",
+      "环境优雅",
+      "浪漫氛围"
+    ]
+  },
+  {
+    "id": "r016",
+    "name": "杭帮小馆",
+    "cuisine": "杭帮菜",
+    "coordinates": {
+      "lat": 31.18,
+      "lng": 121.43
+    },
+    "address": "西湖区天竺路88号",
+    "distance_km": 2.0,
+    "price_per_person": 100,
+    "rating": 4.3,
+    "has_kids_menu": true,
+    "has_low_calorie_options": true,
+    "noise_level": "moderate",
+    "max_party_size": 8,
+    "available_slots": [
+      "11:30",
+      "12:30",
+      "13:30"
+    ],
+    "tags": [
+      "家庭聚餐",
+      "杭帮菜",
+      "适合聊天",
+      "健康轻食",
+      "性价比"
+    ]
+  },
+  {
+    "id": "r017",
+    "name": "味之源",
+    "cuisine": "粤菜",
+    "coordinates": {
+      "lat": 31.27,
+      "lng": 121.53
+    },
+    "address": "徐汇区康平路500号",
+    "distance_km": 2.9,
+    "price_per_person": 130,
+    "rating": 4.5,
+    "has_kids_menu": false,
+    "has_low_calorie_options": false,
+    "noise_level": "lively",
+    "max_party_size": 10,
+    "available_slots": [
+      "12:00",
+      "13:00",
+      "14:00"
+    ],
+    "tags": [
+      "朋友聚会",
+      "粤菜",
+      "热闹",
+      "商务宴请",
+      "菜品丰富"
+    ]
+  },
+  {
+    "id": "r018",
+    "name": "素心堂",
+    "cuisine": "素食",
+    "coordinates": {
+      "lat": 31.32,
+      "lng": 121.57
+    },
+    "address": "浦东新区张衡路150号",
+    "distance_km": 4.5,
+    "price_per_person": 65,
+    "rating": 4.4,
+    "has_kids_menu": true,
+    "has_low_calorie_options": true,
+    "noise_level": "quiet",
+    "max_party_size": 4,
+    "available_slots": [
+      "11:00",
+      "12:00",
+      "13:00"
+    ],
+    "tags": [
+      "健康轻食",
+      "素食者",
+      "安静",
+      "环境清新",
+      "适合办公"
+    ]
+  },
+  {
+    "id": "r019",
+    "name": "川味坊",
+    "cuisine": "川菜",
+    "coordinates": {
+      "lat": 31.16,
+      "lng": 121.39
+    },
+    "address": "虹口区中山北一路120号",
+    "distance_km": 1.7,
+    "price_per_person": 85,
+    "rating": 4.1,
+    "has_kids_menu": false,
+    "has_low_calorie_options": false,
+    "noise_level": "lively",
+    "max_party_size": 8,
+    "available_slots": [
+      "17:30",
+      "18:30",
+      "19:30"
+    ],
+    "tags": [
+      "朋友聚会",
+      "川菜",
+      "辣味",
+      "热闹",
+      "适合聚餐"
+    ]
+  },
+  {
+    "id": "r020",
+    "name": "海的味道",
+    "cuisine": "日料",
+    "coordinates": {
+      "lat": 31.24,
+      "lng": 121.49
+    },
+    "address": "黄浦区福州路200号",
+    "distance_km": 2.3,
+    "price_per_person": 160,
+    "rating": 4.6,
+    "has_kids_menu": false,
+    "has_low_calorie_options": false,
+    "noise_level": "moderate",
+    "max_party_size": 6,
+    "available_slots": [
+      "18:00",
+      "19:00",
+      "20:00"
+    ],
+    "tags": [
+      "情侣约会",
+      "日料",
+      "环境优雅",
+      "适合聊天",
+      "精致套餐"
+    ]
+  },
+  {
+    "id": "r021",
+    "name": "京味轩",
+    "cuisine": "杭帮菜",
+    "coordinates": {
+      "lat": 31.19,
+      "lng": 121.42
+    },
+    "address": "徐汇区虹梅路188号",
+    "distance_km": 2.2,
+    "price_per_person": 95,
+    "rating": 4.4,
+    "has_kids_menu": true,
+    "has_low_calorie_options": true,
+    "noise_level": "moderate",
+    "max_party_size": 6,
+    "available_slots": [
+      "12:00",
+      "13:00",
+      "14:00"
+    ],
+    "tags": [
+      "家庭聚餐",
+      "杭帮菜",
+      "健康轻食",
+      "适合办公",
+      "性价比"
+    ]
+  },
+  {
+    "id": "r022",
+    "name": "云朵西餐厅",
+    "cuisine": "西餐",
+    "coordinates": {
+      "lat": 31.26,
+      "lng": 121.51
+    },
+    "address": "静安区南京西路500号",
+    "distance_km": 3.0,
+    "price_per_person": 180,
+    "rating": 4.5,
+    "has_kids_menu": false,
+    "has_low_calorie_options": false,
+    "noise_level": "quiet",
+    "max_party_size": 4,
+    "available_slots": [
+      "19:30",
+      "20:30",
+      "21:30"
+    ],
+    "tags": [
+      "约会",
+      "西餐",
+      "安静",
+      "环境优雅",
+      "浪漫氛围"
+    ]
+  },
+  {
+    "id": "r023",
+    "name": "台味小厨",
+    "cuisine": "台式",
+    "coordinates": {
+      "lat": 31.31,
+      "lng": 121.56
+    },
+    "address": "浦东新区世纪大道100号",
+    "distance_km": 4.2,
+    "price_per_person": 70,
+    "rating": 4.3,
+    "has_kids_menu": true,
+    "has_low_calorie_options": true,
+    "noise_level": "moderate",
+    "max_party_size": 6,
+    "available_slots": [
+      "11:30",
+      "12:30",
+      "13:30"
+    ],
+    "tags": [
+      "家庭聚餐",
+      "台菜",
+      "健康轻食",
+      "适合办公",
+      "性价比"
+    ]
+  },
+  {
+    "id": "r024",
+    "name": "老正兴菜馆",
+    "cuisine": "本帮菜",
+    "coordinates": {
+      "lat": 31.25,
+      "lng": 121.48
+    },
+    "address": "黄浦区南京东路123号",
+    "distance_km": 1.8,
+    "price_per_person": 80,
+    "rating": 4.5,
+    "has_kids_menu": true,
+    "has_low_calorie_options": true,
+    "noise_level": "moderate",
+    "max_party_size": 10,
+    "available_slots": [
+      "12:00",
+      "13:30",
+      "15:00"
+    ],
+    "tags": [
+      "家庭聚餐",
+      "儿童友好",
+      "本地特色",
+      "性价比高",
+      "环境安静"
+    ]
+  },
+  {
+    "id": "r025",
+    "name": "京味斋",
+    "cuisine": "杭帮菜",
+    "coordinates": {
+      "lat": 31.22,
+      "lng": 121.45
+    },
+    "address": "西湖区文三路456号",
+    "distance_km": 2.1,
+    "price_per_person": 95,
+    "rating": 4.2,
+    "has_kids_menu": false,
+    "has_low_calorie_options": false,
+    "noise_level": "lively",
+    "max_party_size": 6,
+    "available_slots": [
+      "18:30",
+      "19:30",
+      "20:30"
+    ],
+    "tags": [
+      "朋友聚会",
+      "本地风味",
+      "热闹氛围",
+      "适合聊天",
+      "性价比"
+    ]
+  },
+  {
+    "id": "r026",
+    "name": "翠华餐厅",
+    "cuisine": "粤菜",
+    "coordinates": {
+      "lat": 31.28,
+      "lng": 121.5
+    },
+    "address": "天河区中山路789号",
+    "distance_km": 2.4,
+    "price_per_person": 150,
+    "rating": 4.7,
+    "has_kids_menu": true,
+    "has_low、calorie_options": false,
+    "noise_level": "quiet",
+    "max_party_size": 8,
+    "available_slots": [
+      "11:00",
+      "12:30",
+      "14:00"
+    ],
+    "tags": [
+      "家庭聚餐",
+      "粤式早茶",
+      "安静环境",
+      "健康轻食",
+      "适合聊天"
+    ]
+  },
+  {
+    "id": "r027",
+    "name": "寿司匠",
+    "cuisine": "日料",
+    "coordinates": {
+      "lat": 31.27,
+      "lng": 121.42
+    },
+    "address": "静安区南京西路101号",
+    "distance_km": 1.5,
+    "price_per_person": 200,
+    "rating": 4.6,
+    "has_kids_menu": false,
+    "has_low_calorie_options": true,
+    "noise_level": "moderate",
+    "max_party_size": 4,
+    "available_slots": [
+      "17:00",
+      "18:30",
+      "20:00"
+    ],
+    "tags": [
+      "约会餐厅",
+      "精致料理",
+      "健康轻食",
+      "环境优雅",
+      "适合拍照"
+    ]
+  },
+  {
+    "id": "r028",
+    "name": "蜀韵火锅",
+    "cuisine": "川菜",
+    "coordinates": {
+      "lat": 31.3,
+      "lng": 121.47
+    },
+    "address": "浦东新区张江路202号",
+    "distance_km": 2.8,
+    "price_per_person": 130,
+    "rating": 4.4,
+    "has_kids_menu": false,
+    "has_low_calorie_options": false,
+    "noise_level": "lively",
+    "max_party_size": 12,
+    "available_slots": [
+      "19:00",
+      "20:30",
+      "22:00"
+    ],
+    "tags": [
+      "朋友聚会",
+      "麻辣鲜香",
+      "热闹氛围",
+      "适合聊天",
+      "火锅特色"
+    ]
+  },
+  {
+    "id": "r029",
+    "name": "绿野仙踪",
+    "cuisine": "素食",
+    "coordinates": {
+      "lat": 31.24,
+      "lng": 121.49
+    },
+    "address": "徐汇区漕溪路303号",
+    "distance_km": 2.0,
+    "price_per_person": 110,
+    "rating": 4.5,
+    "has_kids_menu": true,
+    "has_low_calorie_options": true,
+    "noise_level": "quiet",
+    "max_party_size": 6,
+    "available_slots": [
+      "12:00",
+      "13:30",
+      "15:00"
+    ],
+    "tags": [
+      "健康轻食",
+      "素食友好",
+      "安静环境",
+      "家庭聚餐",
+      "环保理念"
+    ]
+  },
+  {
+    "id": "r030",
+    "name": "小洋房西餐厅",
+    "cuisine": "西餐",
+    "coordinates": {
+      "lat": 31.26,
+      "lng": 121.44
+    },
+    "address": "虹口区四川北路404号",
+    "distance_km": 1.9,
+    "price_per_person": 180,
+    "rating": 4.3,
+    "has_kids_menu": false,
+    "has_low_calorie_options": true,
+    "noise_level": "moderate",
+    "max_party_size": 8,
+    "available_slots": [
+      "18:00",
+      "19:30",
+      "21:00"
+    ],
+    "tags": [
+      "浪漫约会",
+      "西式料理",
+      "适合拍照",
+      "健康轻食",
+      "环境优雅"
+    ]
+  },
+  {
+    "id": "r031",
+    "name": "台味轩",
+    "cuisine": "台式",
+    "coordinates": {
+      "lat": 31.29,
+      "lng": 121.46
+    },
+    "address": "杨浦区国权路505号",
+    "distance_km": 2.3,
+    "price_per_person": 90,
+    "rating": 4.1,
+    "has_kids_menu": true,
+    "has_low_calorie_options": false,
+    "noise_level": "quiet",
+    "max_party_size": 6,
+    "available_slots": [
+      "11:30",
+      "13:00",
+      "14:30"
+    ],
+    "tags": [
+      "家庭聚餐",
+      "台式便当",
+      "安静环境",
+      "性价比高",
+      "本地特色"
+    ]
+  },
+  {
+    "id": "r032",
+    "name": "沸腾渔港",
+    "cuisine": "粤菜",
+    "coordinates": {
+      "lat": 31.31,
+      "lng": 121.48
+    },
+    "address": "普陀区长寿路606号",
+    "distance_km": 2.6,
+    "price_per_person": 140,
+    "rating": 4.5,
+    "has_kids_menu": false,
+    "has_low_calorie_options": true,
+    "noise_level": "lively",
+    "max_party_size": 10,
+    "available_slots": [
+      "12:00",
+      "13:30",
+      "15:00"
+    ],
+    "tags": [
+      "朋友聚会",
+      "海鲜自助",
+      "热闹氛围",
+      "健康轻食",
+      "性价比"
+    ]
+  },
+  {
+    "id": "r033",
+    "name": "和匠寿司",
+    "cuisine": "日料",
+    "coordinates": {
+      "lat": 31.23,
+      "lng": 121.43
+    },
+    "address": "静安区恒丰路707号",
+    "distance_km": 1.7,
+    "price_per_person": 220,
+    "rating": 4.8,
+    "has_kids_menu": false,
+    "has_low_calorie_options": true,
+    "noise_level": "moderate",
+    "max_party_size": 4,
+    "available_slots": [
+      "17:30",
+      "19:00",
+      "20:30"
+    ],
+    "tags": [
+      "高端料理",
+      "适合约会",
+      "健康轻食",
+      "环境优雅",
+      "精致体验"
+    ]
+  },
+  {
+    "id": "r034",
+    "name": "川味坊",
+    "cuisine": "川菜",
+    "coordinates": {
+      "lat": 31.32,
+      "lng": 121.49
+    },
+    "address": "闵行区吴宝路808号",
+    "distance_km": 3.0,
+    "price_per_person": 125,
+    "rating": 4.4,
+    "has_kids_menu": false,
+    "has_low_calorie_options": false,
+    "noise_level": "lively",
+    "max_party_size": 8,
+    "available_slots": [
+      "18:00",
+      "19:30",
+      "21:00"
+    ],
+    "tags": [
+      "朋友聚会",
+      "麻辣火锅",
+      "热闹氛围",
+      "适合聊天",
+      "本地风味"
+    ]
+  },
+  {
+    "id": "r035",
+    "name": "绿野仙踪2号店",
+    "cuisine": "素食",
+    "coordinates": {
+      "lat": 31.25,
+      "lng": 121.47
+    },
+    "address": "徐汇区虹梅路909号",
+    "distance_km": 2.1,
+    "price_per_person": 115,
+    "rating": 4.6,
+    "has_kids_menu": true,
+    "has_low_calorie_options": true,
+    "noise_level": "quiet",
+    "max_party_size": 6,
+    "available_slots": [
+      "12:30",
+      "14:00",
+      "15:30"
+    ],
+    "tags": [
+      "健康轻食",
+      "素食友好",
+      "安静环境",
+      "家庭聚餐",
+      "环保理念"
+    ]
+  },
+  {
+    "id": "r036",
+    "name": "巴黎咖啡馆",
+    "cuisine": "西餐",
+    "coordinates": {
+      "lat": 31.28,
+      "lng": 121.45
+    },
+    "address": "黄浦区淮海中路1010号",
+    "distance_km": 1.6,
+    "price_per_person": 190,
+    "rating": 4.5,
+    "has_kids_menu": false,
+    "has_low_calorie_options": true,
+    "noise_level": "moderate",
+    "max_party_size": 8,
+    "available_slots": [
+      "18:30",
+      "20:00",
+      "21:30"
+    ],
+    "tags": [
+      "浪漫约会",
+      "西式料理",
+      "适合拍照",
+      "健康轻食",
+      "环境优雅"
+    ]
+  },
+  {
+    "id": "r037",
+    "name": "福味记",
+    "cuisine": "杭帮菜",
+    "coordinates": {
+      "lat": 31.24,
+      "lng": 121.46
+    },
+    "address": "西湖区文三路1111号",
+    "distance_km": 2.2,
+    "price_per_person": 98,
+    "rating": 4.3,
+    "has_kids_menu": true,
+    "has_low_calorie_options": false,
+    "noise_level": "quiet",
+    "max_party_size": 6,
+    "available_slots": [
+      "11:00",
+      "12:30",
+      "14:00"
+    ],
+    "tags": [
+      "家庭聚餐",
+      "本地特色",
+      "安静环境",
+      "性价比高",
+      "适合聊天"
+    ]
+  },
+  {
+    "id": "r038",
+    "name": "日料研究所",
+    "cuisine": "日料",
+    "coordinates": {
+      "lat": 31.27,
+      "lng": 121.44
+    },
+    "address": "静安区南京西路1212号",
+    "distance_km": 1.8,
+    "price_per_person": 230,
+    "rating": 4.7,
+    "has_kids_menu": false,
+    "has_low_calorie_options": true,
+    "noise_level": "lively",
+    "max_party_size": 4,
+    "available_slots": [
+      "17:00",
+      "18:30",
+      "20:00"
+    ],
+    "tags": [
+      "高端料理",
+      "适合约会",
+      "健康轻食",
+      "环境优雅",
+      "精致体验"
+    ]
+  },
+  {
+    "id": "r039",
+    "name": "江南小馆",
+    "cuisine": "杭帮菜",
+    "coordinates": {
+      "lat": 31.21,
+      "lng": 121.45
+    },
+    "address": "徐汇区漕溪路123号",
+    "distance_km": 2.5,
+    "price_per_person": 120,
+    "rating": 4.3,
+    "has_kids_menu": true,
+    "has_low_calorie_options": true,
+    "noise_level": "quiet",
+    "max_party_size": 8,
+    "available_slots": [
+      "17:30",
+      "18:00",
+      "19:00"
+    ],
+    "tags": [
+      "家庭聚餐",
+      "儿童友好",
+      "安静",
+      "杭帮菜",
+      "性价比"
+    ]
+  },
+  {
+    "id": "r040",
+    "name": "老灶头",
+    "cuisine": "本帮菜",
+    "coordinates": {
+      "lat": 31.23,
+      "lng": 121.48
+    },
+    "address": "黄浦区南京东路456号",
+    "distance_km": 3.2,
+    "price_per_person": 150,
+    "rating": 4.5,
+    "has_kids_menu": true,
+    "has_low_calorie_options": true,
+    "noise_level": "moderate",
+    "max_party_size": 6,
+    "available_slots": [
+      "18:30",
+      "19:30",
+      "20:30"
+    ],
+    "tags": [
+      "家庭聚餐",
+      "本帮菜",
+      "热闹",
+      "儿童友好",
+      "上海风味"
+    ]
+  },
+  {
+    "id": "r041",
+    "name": "粤味轩",
+    "cuisine": "粤菜",
+    "coordinates": {
+      "lat": 31.26,
+      "lng": 121.52
+    },
+    "address": "天河区体育西路789号",
+    "distance_km": 4.1,
+    "price_per_person": 200,
+    "rating": 4.7,
+    "has_kids_menu": false,
+    "has_low_calorie_options": false,
+    "noise_level": "lively",
+    "max_party_size": 10,
+    "available_slots": [
+      "12:00",
+      "13:00",
+      "14:00"
+    ],
+    "tags": [
+      "商务宴请",
+      "粤式点心",
+      "适合朋友聚会",
+      "热闹",
+      "高端"
+    ]
+  },
+  {
+    "id": "r042",
+    "name": "樱之味",
+    "cuisine": "日料",
+    "coordinates": {
+      "lat": 31.28,
+      "lng": 121.47
+    },
+    "address": "静安区南京西路101号",
+    "distance_km": 2.8,
+    "price_per_person": 300,
+    "rating": 4.6,
+    "has_kids_menu": false,
+    "has_low_calorie_options": false,
+    "noise_level": "quiet",
+    "max_party_size": 4,
+    "available_slots": [
+      "19:00",
+      "20:00",
+      "21:00"
+    ],
+    "tags": [
+      "日式料理",
+      "适合情侣",
+      "安静",
+      "精致",
+      "寿司"
+    ]
+  },
+  {
+    "id": "r043",
+    "name": "川味坊",
+    "cuisine": "川菜",
+    "coordinates": {
+      "lat": 31.24,
+      "lng": 121.55
+    },
+    "address": "成华区建设路202号",
+    "distance_km": 3.5,
+    "price_per_person": 180,
+    "rating": 4.4,
+    "has_kids_menu": false,
+    "has_low_calorie_options": false,
+    "noise_level": "lively",
+    "max_party_size": 8,
+    "available_slots": [
+      "12:30",
+      "13:30",
+      "14:30"
+    ],
+    "tags": [
+      "麻辣鲜香",
+      "适合朋友聚会",
+      "热闹",
+      "川菜馆",
+      "辣味"
+    ]
+  },
+  {
+    "id": "r044",
+    "name": "绿野仙踪",
+    "cuisine": "素食",
+    "coordinates": {
+      "lat": 31.27,
+      "lng": 121.43
+    },
+    "address": "虹口区鲁迅公园303号",
+    "distance_km": 2.0,
+    "price_per_person": 100,
+    "rating": 4.2,
+    "has_kids_menu": true,
+    "has_low_calorie_options": true,
+    "noise_level": "quiet",
+    "max_party_size": 6,
+    "available_slots": [
+      "11:00",
+      "12:00",
+      "13:00"
+    ],
+    "tags": [
+      "健康轻食",
+      "素食者友好",
+      "安静",
+      "低碳环保",
+      "家庭聚餐"
+    ]
+  },
+  {
+    "id": "r045",
+    "name": "西餐厅",
+    "cuisine": "西餐",
+    "coordinates": {
+      "lat": 31.22,
+      "lng": 121.5
+    },
+    "address": "浦东新区陆家嘴404号",
+    "distance_km": 4.0,
+    "price_per_person": 250,
+    "rating": 4.5,
+    "has_kids_menu": false,
+    "has_low_calorie_options": false,
+    "noise_level": "moderate",
+    "max_party_size": 8,
+    "available_slots": [
+      "18:00",
+      "19:00",
+      "20:00"
+    ],
+    "tags": [
+      "浪漫氛围",
+      "适合约会",
+      "西式风情",
+      "高端",
+      "商务宴请"
+    ]
+  },
+  {
+    "id": "r046",
+    "name": "台风馆",
+    "cuisine": "台式",
+    "coordinates": {
+      "lat": 31.29,
+      "lng": 121.46
+    },
+    "address": "南岸区渝中路505号",
+    "distance_km": 3.8,
+    "price_per_person": 160,
+    "rating": 4.3,
+    "has_kids_menu": false,
+    "has_low_calorie_options": false,
+    "noise_level": "moderate",
+    "max_party_size": 10,
+    "available_slots": [
+      "11:30",
+      "12:30",
+      "13:30"
+    ],
+    "tags": [
+      "台湾风味",
+      "适合朋友聚会",
+      "热汤",
+      "火锅",
+      "地道"
+    ]
+  },
+  {
+    "id": "r047",
+    "name": "小笼包",
+    "cuisine": "杭帮菜",
+    "coordinates": {
+      "lat": 31.25,
+      "lng": 121.44
+    },
+    "address": "江干区钱塘路606号",
+    "distance_km": 2.7,
+    "price_per_person": 90,
+    "rating": 4.1,
+    "has_kids_menu": true,
+    "has_low_calorie_options": true,
+    "noise_level": "moderate",
+    "max_party_size": 12,
+    "available_slots": [
+      "10:30",
+      "11:30",
+      "12:30"
+    ],
+    "tags": [
+      "经济实惠",
+      "家庭聚餐",
+      "小吃",
+      "儿童友好",
+      "杭州小吃"
+    ]
+  },
+  {
+    "id": "r048",
+    "name": "海味坊",
+    "cuisine": "粤菜",
+    "coordinates": {
+      "lat": 31.28,
+      "lng": 121.51
+    },
+    "address": "黄埔区临江大道707号",
+    "distance_km": 3.9,
+    "price_per_person": 190,
+    "rating": 4.6,
+    "has_kids_menu": false,
+    "has_low_calorie_options": false,
+    "noise_level": "lively",
+    "max_party_size": 10,
+    "available_slots": [
+      "12:00",
+      "13:00",
+      "14:00"
+    ],
+    "tags": [
+      "海鲜盛宴",
+      "适合朋友聚会",
+      "热闹",
+      "粤式海鲜",
+      "高端"
+    ]
+  },
+  {
+    "id": "r049",
+    "name": "绿屋",
+    "cuisine": "素食",
+    "coordinates": {
+      "lat": 31.26,
+      "lng": 121.42
+    },
+    "address": "崇文区文华路808号",
+    "distance_km": 2.4,
+    "price_per_person": 110,
+    "rating": 4.4,
+    "has_kids_menu": true,
+    "has_low_calorie_options": true,
+    "noise_level": "quiet",
+    "max_party_size": 8,
+    "available_slots": [
+      "16:00",
+      "17:00",
+      "18:00"
+    ],
+    "tags": [
+      "有机食材",
+      "适合素食者",
+      "安静",
+      "健康饮食",
+      "家庭聚餐"
+    ]
+  },
+  {
+    "id": "r050",
+    "name": "四季坊",
+    "cuisine": "川菜",
+    "coordinates": {
+      "lat": 31.23,
+      "lng": 121.53
+    },
+    "address": "青羊区宽窄巷子909号",
+    "distance_km": 3.6,
+    "price_per_person": 170,
+    "rating": 4.5,
+    "has_kids_menu": false,
+    "has_low_calorie_options": false,
+    "noise_level": "lively",
+    "max_party_size": 12,
+    "available_slots": [
+      "13:00",
+      "14:00",
+      "15:00"
+    ],
+    "tags": [
+      "麻辣火锅",
+      "适合朋友聚会",
+      "热闹",
+      "川菜馆",
+      "聚会场所"
+    ]
+  }
+]
