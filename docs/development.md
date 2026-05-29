@@ -190,7 +190,7 @@ Tool 层分五个文件，职责分离：
 | `tools/store.py` | ChromaDB 初始化与检索接口（已完成） |
 | `tools/search.py` | 两阶检索：硬约束过滤 + 语义排序（已完成） |
 | `tools/availability.py` | 查询场所/餐厅的时间段可用性（已完成） |
-| `tools/booking.py` | 执行预订/购票/下单动作（待写） |
+| `tools/booking.py` | 执行预订/购票/下单动作（已完成） |
 | `tools/notification.py` | 发送行程确认通知（待写） |
 
 ### tools/store.py
@@ -251,11 +251,135 @@ kids_friendly = True if ac.kids_friendly else None   # False 不过滤
 
 **`preferred_categories` 在 Python 层过滤**：与其他 AND 条件组合时 ChromaDB `$in` 嵌套层级较深，行为无明确保证；数据量小（30条）Python 过滤无性能问题。
 
+### tools/availability.py
+
+两个对外接口 + 两个内部 helper：
+
+```python
+check_restaurant_availability(restaurant_id, requested_time, party_size) → AvailabilityResult
+check_venue_availability(venue_id, requested_time) → AvailabilityResult
+
+_parse_time(t: str) → int           # "17:30" → 1050 分钟，便于大小比较
+_next_available_slot(slots, time)   # 找第一个晚于 time 的时间段
+```
+
+`AvailabilityResult.retryable` 字段驱动 replan 策略：
+- `retryable=True`（时间段冲突）→ 换时间段重试
+- `retryable=False`（人数超限 / 场所关闭）→ 换地点
+
+### tools/booking.py
+
+执行预订，调用前先做 final check，防止规划→执行窗口期失效：
+
+```python
+book_restaurant(restaurant_id, time_slot, party_size, *, original_time_slot=None) → BookingResult
+book_venue(venue_id, party_size, requested_time) → BookingResult
+```
+
+`original_time_slot` 与 `time_slot` 不同时，`BookingResult.fallback_applied=True`，
+前端据此展示"已为您调整时间"提示。
+
+**全部为 Mock 实现**：无真实 API 调用。工具层面向接口设计，生产环境替换内部实现即可，LangGraph 图和测试不受影响。
+
+**测试覆盖**：36 个 pytest 用例（19 availability + 10 booking + 7 notification），全部通过。
+
 ---
 
 ## Step 5：LangGraph 状态图
 
-> 待补充
+### 文件结构
+
+| 文件 | 职责 |
+|------|------|
+| `llm/factory.py` | LLM 工厂，`get_llm(role)` 返回对应 provider 的 ChatModel |
+| `prompts/intent_parser/system.txt` | parse_intent 节点的 system prompt |
+| `prompts/planner/system.txt` | generate_plans 节点的 system prompt（含行程时间估算指令） |
+| `prompts/notifier/system.txt` | send_notification 节点的 system prompt |
+| `agent/nodes.py` | 所有节点函数 |
+| `agent/graph.py` | 图的组装、条件边、编译 |
+
+### LLM 工厂
+
+`get_llm(role)` 通过 `@lru_cache` 缓存实例，避免重复初始化：
+
+```python
+# main → 规划节点（强推理），fast → 解析/通知节点（速度优先）
+_MODEL_MAP = {
+    "anthropic": ("claude-sonnet-4-6", "claude-haiku-4-5-20251001"),
+    "openai":    ("gpt-4o",            "gpt-4o-mini"),
+    "deepseek":  ("deepseek-chat",     "deepseek-chat"),
+    "ollama":    ("qwen3:8b",          "qwen3:8b"),
+}
+```
+
+切换 provider 只需改 `.env` 里的 `LLM_PROVIDER`，节点代码不动。
+
+### 结构化输出：with_structured_output
+
+所有需要结构化 LLM 输出的节点统一使用 LangChain 的 `with_structured_output(Schema)`，
+不引入 Instructor，避免与 LangChain ChatModel 的接口混用问题：
+
+```python
+# parse_intent
+llm = get_llm("fast").with_structured_output(ConstraintSet)
+constraints = llm.invoke([SystemMessage(...), HumanMessage(...)])
+
+# generate_plans（list 需要 wrapper model）
+class _PlansResponse(BaseModel):
+    plans: list[Plan]
+
+llm = get_llm("main").with_structured_output(_PlansResponse)
+response = llm.invoke([...])
+```
+
+`with_structured_output` 在 Anthropic 下用 tool_use，在 OpenAI 下用 function calling，
+底层自动处理，节点代码与 provider 无关。
+
+### 图结构与执行路径
+
+```
+START → parse_intent → search_candidates → generate_plans → check_availability
+                                                                    │
+                              ┌─────────────────────────────────────┤
+                              │ 有可用方案                            │ 全不可用
+                              ▼                                      ▼
+                         human_review ◄──────────────── increment_replan → generate_plans
+                         (interrupt)       用户拒绝        （计数 +1）
+                              │
+                              │ 用户确认
+                              ▼
+                      execute_bookings → send_notification → END
+                                                                │
+                         handle_error → END ◄── replan 超限 ───┘
+```
+
+### AgentState 字段说明
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `candidate_venues` | `list[dict]` | search_candidates 填入，后续只读 |
+| `candidate_restaurants` | `list[dict]` | 同上 |
+| `candidate_plans` | `Annotated[list[Plan], operator.add]` | 追加语义，replan 保留历史 |
+| `availability_results` | `dict[str, AvailabilityResult]` | key 为场所/餐厅 id |
+| `replan_count` | `int` | 已重规划次数，超过 `max_replan_count` 进 handle_error |
+
+### HiL（Human-in-the-Loop）实现
+
+暂停点由 `human_review` 节点内部的 `interrupt(payload)` 控制，
+payload 携带候选方案数据，前端直接展示：
+
+```python
+def human_review(state: AgentState) -> dict:
+    plans = state["candidate_plans"][-config.max_candidate_plans:]
+    payload = interrupt({"plans": [p.model_dump() for p in plans]})
+    # 前端 POST /confirm 后从这里恢复，payload 即用户传入的确认数据
+    confirmed = payload.get("confirmed", False)
+    selected_id = payload.get("selected_plan_id", "")
+    ...
+```
+
+`MemorySaver` 将 interrupt 时的完整 state 持久化，resume 后从断点继续，
+不需要重跑前面的节点。
 
 ---
 
