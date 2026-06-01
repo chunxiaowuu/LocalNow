@@ -8,6 +8,7 @@ FastAPI 路由。
   GET  /session/{id}/result   获取最终结果
 """
 
+import asyncio
 import json
 import uuid
 
@@ -102,21 +103,50 @@ async def stream_session(session_id: str):
             }
             return
 
-        try:
-            async for chunk in graph.astream(graph_input, config, stream_mode="updates"):
-                for node_name, node_output in chunk.items():
+        # Queue 解耦图执行与 SSE 生成器：
+        # 图在独立 asyncio task 里跑，每完成一个节点就把 chunk 放入队列；
+        # SSE 生成器每 5 秒从队列取一次，取不到就发 heartbeat 保活连接，
+        # 无论 LLM 跑多久都不会因为无数据导致连接超时。
+        queue: asyncio.Queue = asyncio.Queue()
+        _SENTINEL = object()  # 结束信号
 
+        async def run_graph() -> None:
+            try:
+                async for chunk in graph.astream(graph_input, config, stream_mode="updates"):
+                    await queue.put(("chunk", chunk))
+            except Exception as exc:
+                await queue.put(("error", exc))
+            finally:
+                await queue.put(("done", _SENTINEL))
+
+        asyncio.create_task(run_graph())
+
+        try:
+            while True:
+                try:
+                    kind, payload = await asyncio.wait_for(queue.get(), timeout=5.0)
+                except asyncio.TimeoutError:
+                    # 5 秒内没有新 chunk，发 heartbeat 保活连接
+                    yield {"event": "heartbeat", "data": "{}"}
+                    continue
+
+                if kind == "error":
+                    raise payload
+
+                if kind == "done":
+                    break
+
+                # kind == "chunk"
+                chunk = payload
+                for node_name, node_output in chunk.items():
                     if node_name == "__interrupt__":
-                        # LangGraph HiL interrupt，把候选方案推给前端
                         interrupt_value = node_output[0].value
                         session_store.update(session_id, status="interrupted")
                         yield {
                             "event": "interrupt",
                             "data": json.dumps(interrupt_value, ensure_ascii=False, default=str),
                         }
-
                     else:
-                        # 普通节点执行进度
                         message = _NODE_MESSAGES.get(node_name, f"{node_name} 执行中...")
                         yield {
                             "event": "node_update",
@@ -126,7 +156,7 @@ async def stream_session(session_id: str):
                             ),
                         }
 
-            # 流结束，检查是否已完成（非 interrupt 导致的结束）
+            # 图跑完，检查是否正常结束（非 interrupt）
             if session_store.get(session_id).status == "running":
                 final = graph.get_state(config)
                 values = final.values

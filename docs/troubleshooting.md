@@ -247,3 +247,26 @@ def reassign_ids(data: list[dict], prefix: str) -> list[dict]:
 ```
 
 **经验**：不要信任 LLM 生成的 ID，任何需要全局唯一的字段都应该在代码层统一生成和管理。
+
+---
+
+## 问题 11：SSE 连接在 generate_plans 执行期间超时断开
+
+**阶段**：前后端联调
+
+**现象**：
+前端显示"正在搜索附近场所和餐厅..."后，等待数分钟后出现"连接错误"，Agent 未能推送后续节点进度。
+
+**根本原因**：
+`graph.astream()` 只在节点执行完毕后才 yield chunk。`generate_plans` 调用本地 Ollama（qwen3:8b）生成结构化 JSON 需要 5-15 分钟。若 LLM 的 HTTP 调用阻塞了 asyncio 事件循环，sse-starlette 的 ping 心跳无法发出，TCP 连接因长时间无数据被浏览器判断超时断开。前端 `EventSource` 触发 `error` 事件，我们的代码直接关闭连接并报错。
+
+**解决方案**：
+用 `asyncio.Queue` 将图的执行与 SSE 生成器解耦：
+- 图在独立的 `asyncio.create_task` 里运行，每完成一个节点把 chunk 放入队列
+- SSE 生成器每 5 秒从队列取一次，取不到就发 `heartbeat` 事件保活连接
+- 前端注册 `heartbeat` 监听器并忽略
+
+**涉及文件**：`api/routes.py`（后端），`app/page.tsx`（前端）
+
+**经验**：
+SSE 长连接中，若服务端有耗时操作，必须确保心跳能独立于业务逻辑发出。将耗时任务放入 asyncio.Queue 并异步消费，是解决此类问题的标准模式。

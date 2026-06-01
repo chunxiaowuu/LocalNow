@@ -15,6 +15,9 @@ export default function Home() {
   const startStream = useCallback((sessionId: string, existingEvents: ProgressEvent[] = []) => {
     const es = openStream(sessionId);
 
+    // heartbeat 事件仅用于保持 SSE 连接，前端直接忽略
+    es.addEventListener("heartbeat", () => {});
+
     es.addEventListener("node_update", (e) => {
       const data = JSON.parse(e.data);
       setPhase((prev) => {

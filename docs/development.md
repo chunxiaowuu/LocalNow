@@ -426,10 +426,38 @@ HiL interrupt 把 SSE 流分成两段：
 
 | 事件名 | 数据 | 时机 |
 |--------|------|------|
-| `node_update` | `{node, message}` | 每个节点开始执行时 |
+| `node_update` | `{node, message}` | 每个节点执行完毕时 |
+| `heartbeat` | `{}` | 每 5 秒，无节点事件时保活连接 |
 | `interrupt` | `{plans: Plan[]}` | HiL 暂停，展示方案给用户 |
 | `done` | `{summary, booking_results}` | 图执行完毕 |
 | `error` | `{message}` | 发生异常 |
+
+### asyncio.Queue 解耦设计（SSE 保活）
+
+**问题**：`graph.astream()` 只在节点完成后才 yield chunk。`generate_plans` 用本地 Ollama 需要数分钟，期间若 LLM 调用阻塞 asyncio 事件循环，sse-starlette 的 ping 无法发出，TCP 连接因长时间无数据被浏览器判断为超时断开。
+
+**解决方案**：用 `asyncio.Queue` 把图的执行与 SSE 生成器解耦：
+
+```python
+queue = asyncio.Queue()
+
+async def run_graph():
+    async for chunk in graph.astream(graph_input, config, stream_mode="updates"):
+        await queue.put(("chunk", chunk))
+    await queue.put(("done", None))
+
+asyncio.create_task(run_graph())  # 图在独立 task 里跑
+
+while True:
+    try:
+        kind, payload = await asyncio.wait_for(queue.get(), timeout=5.0)
+    except asyncio.TimeoutError:
+        yield {"event": "heartbeat", "data": "{}"}  # 保活
+        continue
+    # 处理 chunk / done / error ...
+```
+
+前端注册 `heartbeat` 监听器并忽略，不影响 UI 状态。
 
 ---
 
