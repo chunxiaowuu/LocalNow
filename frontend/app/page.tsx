@@ -1,65 +1,141 @@
-import Image from "next/image";
+"use client";
+
+import { useCallback, useState } from "react";
+import { Phase, ProgressEvent } from "@/lib/types";
+import { createSession, openStream, confirmPlan } from "@/lib/api";
+import { ChatInput } from "@/components/planner/ChatInput";
+import { AgentProgress } from "@/components/planner/AgentProgress";
+import { PlanCards } from "@/components/planner/PlanCards";
+import { ExecSummary } from "@/components/planner/ExecSummary";
 
 export default function Home() {
+  const [phase, setPhase] = useState<Phase>({ kind: "input" });
+
+  // 启动 SSE 流，处理所有事件类型
+  const startStream = useCallback((sessionId: string, existingEvents: ProgressEvent[] = []) => {
+    const es = openStream(sessionId);
+
+    es.addEventListener("node_update", (e) => {
+      const data = JSON.parse(e.data);
+      setPhase((prev) => {
+        const events = [
+          ...(("events" in prev ? prev.events : existingEvents).map((ev) => ({ ...ev, done: true }))),
+          { node: data.node, message: data.message, done: false },
+        ];
+        return { kind: "running", events };
+      });
+    });
+
+    es.addEventListener("interrupt", (e) => {
+      const data = JSON.parse(e.data);
+      es.close();
+      setPhase((prev) => ({
+        kind: "interrupted",
+        events: "events" in prev ? prev.events.map((ev) => ({ ...ev, done: true })) : existingEvents,
+        plans: data.plans,
+        sessionId,
+      }));
+    });
+
+    es.addEventListener("done", (e) => {
+      const data = JSON.parse(e.data);
+      es.close();
+      setPhase({
+        kind: "done",
+        summary: data.summary,
+        bookingResults: data.booking_results ?? [],
+      });
+    });
+
+    es.addEventListener("error", () => {
+      es.close();
+      setPhase({ kind: "error", message: "连接出错，请重试" });
+    });
+  }, []);
+
+  // 用户提交输入，创建会话并开始流
+  const handleSubmit = useCallback(async (message: string) => {
+    try {
+      setPhase({ kind: "running", events: [] });
+      const sessionId = await createSession(message);
+      startStream(sessionId);
+    } catch {
+      setPhase({ kind: "error", message: "创建会话失败，请检查后端是否启动" });
+    }
+  }, [startStream]);
+
+  // 用户确认方案
+  const handleConfirm = useCallback(async (planId: string) => {
+    if (phase.kind !== "interrupted") return;
+    const { sessionId, events } = phase;
+    try {
+      setPhase({ kind: "executing", events: [...events, { node: "execute", message: "正在执行预订...", done: false }] });
+      await confirmPlan(sessionId, true, planId);
+      startStream(sessionId, events);
+    } catch {
+      setPhase({ kind: "error", message: "确认失败，请重试" });
+    }
+  }, [phase, startStream]);
+
+  // 用户拒绝，重新规划
+  const handleReject = useCallback(async () => {
+    if (phase.kind !== "interrupted") return;
+    const { sessionId, events } = phase;
+    try {
+      setPhase({ kind: "running", events });
+      await confirmPlan(sessionId, false, "");
+      startStream(sessionId, events);
+    } catch {
+      setPhase({ kind: "error", message: "操作失败，请重试" });
+    }
+  }, [phase, startStream]);
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+    <main className="min-h-screen bg-gray-50">
+      <div className="max-w-5xl mx-auto px-4 py-16">
+        {phase.kind === "input" && (
+          <ChatInput onSubmit={handleSubmit} loading={false} />
+        )}
+
+        {phase.kind === "running" && (
+          <AgentProgress events={phase.events} />
+        )}
+
+        {phase.kind === "interrupted" && (
+          <div className="space-y-6">
+            <AgentProgress events={phase.events} />
+            <PlanCards
+              plans={phase.plans}
+              onConfirm={handleConfirm}
+              onReject={handleReject}
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+          </div>
+        )}
+
+        {phase.kind === "executing" && (
+          <AgentProgress events={phase.events} />
+        )}
+
+        {phase.kind === "done" && (
+          <ExecSummary
+            summary={phase.summary}
+            bookingResults={phase.bookingResults}
+            onReset={() => setPhase({ kind: "input" })}
+          />
+        )}
+
+        {phase.kind === "error" && (
+          <div className="text-center space-y-4">
+            <p className="text-red-600">{phase.message}</p>
+            <button
+              onClick={() => setPhase({ kind: "input" })}
+              className="text-sm text-gray-500 underline"
+            >
+              返回重试
+            </button>
+          </div>
+        )}
+      </div>
+    </main>
   );
 }
