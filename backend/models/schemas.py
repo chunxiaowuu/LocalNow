@@ -171,7 +171,7 @@ class Plan(BaseModel):
     total_duration_minutes: int
     total_cost_estimate: int        # 人均总价
     constraint_coverage: dict[str, bool] = {}   # {"kids_friendly": True, ...}
-    score: float = Field(default=0.0, ge=0, le=1)
+    score: float = Field(default=0.0, ge=0, le=5)   # LLM 使用 0-5 分制
 
 
 # ---------------------------------------------------------------------------
