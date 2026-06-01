@@ -385,10 +385,108 @@ def human_review(state: AgentState) -> dict:
 
 ## Step 6：FastAPI + SSE
 
-> 待补充
+### 文件结构
+
+| 文件 | 职责 |
+|------|------|
+| `api/main.py` | FastAPI 入口，CORS 中间件，挂载 router |
+| `api/session_store.py` | 内存会话存储，状态机管理 |
+| `api/routes.py` | 4 个 API 端点 |
+
+### 4 个端点
+
+| 端点 | 说明 |
+|------|------|
+| `POST /session` | 创建会话，返回 session_id |
+| `GET /session/{id}/stream` | SSE 长连接，推送 Agent 节点进度 |
+| `POST /session/{id}/confirm` | 用户确认/拒绝方案，存储 resume payload |
+| `GET /session/{id}/result` | 获取最终结果（done 状态后可用） |
+
+### 会话状态机
+
+```
+created → running → interrupted → resuming → running → done
+                                                    └→ error
+```
+
+### 两段式 SSE 设计
+
+HiL interrupt 把 SSE 流分成两段：
+
+```
+第一段：POST /session → GET /stream → 运行到 interrupt → SSE 发 interrupt 事件 → 连接关闭
+第二段：POST /confirm（存储用户选择）→ GET /stream → Command(resume=payload) → 运行完成 → done
+```
+
+每次 `/stream` 根据 session.status 决定传什么给 graph.astream：
+- `created` → 传初始 state
+- `resuming` → 传 `Command(resume=payload)`
+
+### SSE 事件格式
+
+| 事件名 | 数据 | 时机 |
+|--------|------|------|
+| `node_update` | `{node, message}` | 每个节点开始执行时 |
+| `interrupt` | `{plans: Plan[]}` | HiL 暂停，展示方案给用户 |
+| `done` | `{summary, booking_results}` | 图执行完毕 |
+| `error` | `{message}` | 发生异常 |
 
 ---
 
 ## Step 7：Next.js 前端
 
-> 待补充
+### 文件结构
+
+```
+app/
+  page.tsx                       # 主页面（Client Component，持有状态机）
+  layout.tsx                     # 根布局
+components/
+  planner/
+    ChatInput.tsx                # 用户输入框 + 示例按钮
+    AgentProgress.tsx            # Agent 执行进度列表
+    PlanCards.tsx                # 候选方案卡片（含 Timeline、费用、约束覆盖）
+    ExecSummary.tsx              # 执行结果 + 行程通知消息
+lib/
+  types.ts                       # TypeScript 类型（与后端 Pydantic schema 对应）
+  api.ts                         # API 客户端（createSession / openStream / confirmPlan）
+```
+
+### 前端状态机
+
+```typescript
+type Phase =
+  | { kind: "input" }
+  | { kind: "running"; events: ProgressEvent[] }
+  | { kind: "interrupted"; events: ProgressEvent[]; plans: Plan[]; sessionId: string }
+  | { kind: "executing"; events: ProgressEvent[] }
+  | { kind: "done"; summary: string; bookingResults: BookingResult[] }
+  | { kind: "error"; message: string }
+```
+
+每个 `phase` 对应一个 UI 界面，状态切换完全由 SSE 事件驱动：
+
+```
+input ──提交──→ running ──interrupt──→ interrupted ──确认──→ executing ──done──→ done
+                                           └──拒绝──→ running（重规划）
+```
+
+### SSE 前端处理
+
+```typescript
+const es = openStream(sessionId);
+
+es.addEventListener("node_update", (e) => {
+  // 追加进度条目，当前步骤转圈
+  setPhase(prev => ({ kind: "running", events: [...prev.events, newEvent] }));
+});
+
+es.addEventListener("interrupt", (e) => {
+  es.close();  // 关闭第一段 SSE
+  setPhase({ kind: "interrupted", plans: data.plans, sessionId });
+});
+
+// 用户确认后重开 SSE（第二段）
+await confirmPlan(sessionId, true, planId);
+startStream(sessionId);  // 传 Command(resume=...) 给后端
+```
