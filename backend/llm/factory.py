@@ -16,10 +16,11 @@ from config import config
 
 # provider → (main_model, fast_model)
 _MODEL_MAP: dict[str, tuple[str, str]] = {
-    "anthropic": ("claude-sonnet-4-6", "claude-haiku-4-5-20251001"),
-    "openai":    ("gpt-4o",            "gpt-4o-mini"),
-    "deepseek":  ("deepseek-chat",     "deepseek-chat"),
-    "ollama":    ("qwen3:8b",          "qwen3:8b"),
+    "anthropic": ("claude-sonnet-4-6",   "claude-haiku-4-5-20251001"),
+    "openai":    ("gpt-4o",              "gpt-4o-mini"),
+    "deepseek":  ("deepseek-chat",       "deepseek-chat"),
+    "ollama":    ("qwen3:8b",            "qwen3:8b"),
+    "gemini":    ("gemini-2.5-flash",    "gemini-2.5-flash"),
 }
 
 
@@ -67,5 +68,14 @@ def get_llm(role: str = "main") -> BaseChatModel:
     if provider == "ollama":
         from langchain_ollama import ChatOllama
         return ChatOllama(model=model_name, temperature=0)
+
+    if provider == "gemini":
+        from langchain_openai import ChatOpenAI
+        return ChatOpenAI(
+            model=model_name,
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+            api_key=config.google_api_key,
+            temperature=0,
+        )
 
     raise ValueError(f"provider {provider} 未实现")

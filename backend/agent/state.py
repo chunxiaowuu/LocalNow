@@ -9,14 +9,18 @@ from models.schemas import AvailabilityResult, BookingResult, ConstraintSet, Pla
 class AgentState(TypedDict):
     # 用户输入
     user_message: str
+    user_request: dict                   # 原始结构化 UserRequest（dict 形式）
     scenario: Literal["family", "friends"]
 
     # 约束（由 parse_intent 节点填入）
     constraints: ConstraintSet
+    preference_weights: dict[str, float] # 由偏好标签驱动的排序权重
 
     # 搜索候选池（search_candidates 节点填入，后续节点只读）
     candidate_venues: list[dict]
     candidate_restaurants: list[dict]
+    day_clusters: list[list[dict]]       # 每天的场所候选簇，[[day1], [day2], ...]
+    available_activity_minutes_per_day: int  # 每天可用活动时间（分钟）
 
     # 规划阶段
     # Annotated + operator.add：每次 replan 追加新方案，不覆盖旧的
@@ -29,7 +33,7 @@ class AgentState(TypedDict):
     booking_results: Annotated[list[BookingResult], operator.add]
 
     # 控制流
-    replan_count: int       # 已重规划次数，超过 max_replan_count 则终止
+    replan_count: int
     error: str | None
 
     # 最终输出

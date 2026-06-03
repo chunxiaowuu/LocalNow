@@ -109,6 +109,31 @@ def generate_plans(state: AgentState) -> dict:
     venues = state.get("candidate_venues", [])
     restaurants = state.get("candidate_restaurants", [])
 
+    # 把餐厅的可预约时段格式化为易读文本，让 LLM 直接从有效时段中选择
+    def _fmt_restaurant(r: dict) -> str:
+        slots = r.get("available_slots", [])
+        slots_str = "、".join(slots) if slots else "无需预约，直接前往"
+        return (
+            f"{r['name']} | {r.get('cuisine', '')} | "
+            f"¥{r.get('price_per_person', 0)}/人 | "
+            f"可预约时段：{slots_str}"
+        )
+
+    restaurants_text = "\n".join(_fmt_restaurant(r) for r in restaurants)
+
+    # 重规划时把上次失败原因注入 prompt，避免 LLM 重复选同一不可用时段
+    replan_hints = ""
+    availability_results = state.get("availability_results") or {}
+    if availability_results:
+        failures = [
+            v.message for v in availability_results.values()
+            if not v.available and v.message
+        ]
+        if failures:
+            replan_hints = "\n\n**上次规划失败，请避开以下时段/场所：**\n" + "\n".join(
+                f"- {f}" for f in failures
+            )
+
     user_content = f"""
 用户需求：{state["user_message"]}
 
@@ -122,8 +147,8 @@ def generate_plans(state: AgentState) -> dict:
 候选场所（已通过硬约束过滤）：
 {venues}
 
-候选餐厅（已通过硬约束过滤）：
-{restaurants}
+候选餐厅（已通过硬约束过滤，**餐厅时间必须从「可预约时段」中选择**）：
+{restaurants_text}{replan_hints}
 
 请生成 {config.max_candidate_plans} 个风格不同的活动方案。
 """
@@ -171,9 +196,14 @@ def check_availability(state: AgentState) -> dict:
                     (r for r in rest_candidates if r["name"] == item.name), None
                 )
                 if matched:
-                    result = check_restaurant_availability(
-                        matched["id"], item.start_time, constraints.group_size
-                    )
+                    if item.booking_required:
+                        # 需要预约：检查时间槽是否有空位
+                        result = check_restaurant_availability(
+                            matched["id"], item.start_time, constraints.group_size
+                        )
+                    else:
+                        # 无需预约：只检查营业时间，不检查时间槽
+                        result = check_venue_availability(matched["id"], item.start_time)
                     results[matched["id"]] = result
 
     return {"availability_results": results}
@@ -208,7 +238,7 @@ def execute_bookings(state: AgentState) -> dict:
                 )
                 booking_results.append(result)
 
-        elif item.category == "restaurant":
+        elif item.category == "restaurant" and item.booking_required:
             matched = next(
                 (r for r in rest_candidates if r["name"] == item.name), None
             )

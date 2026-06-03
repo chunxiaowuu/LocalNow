@@ -1,13 +1,18 @@
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_ENV_FILE = Path(__file__).parent / ".env"
 
 
 class Config(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=_ENV_FILE, extra="ignore")
 
     # LLM
     llm_provider: str = "anthropic"
     anthropic_api_key: str = ""
     openai_api_key: str = ""
+    google_api_key: str = ""
     langsmith_api_key: str = ""
     langsmith_project: str = "localnow"
 

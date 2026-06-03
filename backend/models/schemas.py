@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 from enum import Enum
 from typing import Literal
 
@@ -16,41 +17,50 @@ class Scenario(str, Enum):
 
 
 class ActivityCategory(str, Enum):
-    aquarium = "aquarium"
-    park = "park"
-    museum = "museum"
+    aquarium    = "aquarium"
+    park        = "park"
+    museum      = "museum"
     kids_center = "kids_center"
     escape_room = "escape_room"
-    exhibition = "exhibition"
-    citywalk = "citywalk"
+    exhibition  = "exhibition"
+    citywalk    = "citywalk"
+
+
+class ActivityPreference(str, Enum):
+    nature   = "nature"    # 自然风光
+    cultural = "cultural"  # 人文历史
+    museum   = "museum"    # 博物馆
+    social   = "social"    # 热闹聚会
+    food     = "food"      # 以吃为主
+    family   = "family"    # 亲子
 
 
 class TravelMode(str, Enum):
-    walk = "walk"
-    taxi = "taxi"
+    walk  = "walk"
+    taxi  = "taxi"
     metro = "metro"
-    bike = "bike"
+    bike  = "bike"
 
 
 class NoiseLevel(str, Enum):
-    quiet = "quiet"
+    quiet    = "quiet"
     moderate = "moderate"
-    lively = "lively"
+    lively   = "lively"
 
 
 class BookingStatus(str, Enum):
     success = "success"
-    failed = "failed"
+    failed  = "failed"
     skipped = "skipped"
 
 
 class ToolErrorCode(str, Enum):
-    NO_SEAT = "NO_SEAT"
-    TOO_FAR = "TOO_FAR"
-    OVER_BUDGET = "OVER_BUDGET"
+    NO_SEAT        = "NO_SEAT"
+    TOO_FAR        = "TOO_FAR"
+    OVER_BUDGET    = "OVER_BUDGET"
     DELIVERY_UNAVAIL = "DELIVERY_UNAVAILABLE"
-    CLOSED = "CLOSED"
-    SOLD_OUT = "SOLD_OUT"
+    CLOSED         = "CLOSED"
+    SOLD_OUT       = "SOLD_OUT"
 
 
 # ---------------------------------------------------------------------------
@@ -79,6 +89,7 @@ class Venue(BaseModel):
     kids_friendly: bool = False
     indoor: bool = True
     tags: list[str] = []
+    typical_visit_minutes: int = 90   # 由 tools/travel.py 按 category 填入
 
 
 class Restaurant(BaseModel):
@@ -94,7 +105,7 @@ class Restaurant(BaseModel):
     has_low_calorie_options: bool = False
     noise_level: NoiseLevel = NoiseLevel.moderate
     max_party_size: int = 10
-    available_slots: list[str] = []     # ["17:30", "18:00", "18:30"]
+    available_slots: list[str] = []
     tags: list[str] = []
 
 
@@ -107,7 +118,7 @@ class AvailabilityResult(BaseModel):
     queue_minutes: int = 0
     next_available_slot: str | None = None
     error_code: ToolErrorCode | None = None
-    retryable: bool = True   # False 时 replan 换地点，True 时换时间段重试
+    retryable: bool = True
     message: str = ""
 
 
@@ -139,13 +150,17 @@ class RestaurantConstraints(BaseModel):
 class ConstraintSet(BaseModel):
     scenario: Scenario
     group_size: int
+    city: str = "上海"
+    start_time: str = "10:00"                # "HH:MM"
+    duration_days: int = 1
     max_distance_km: float = 5.0
     budget_per_person: int = 200
-    duration_hours: float = 5.0
+    duration_hours: float = 5.0              # 单天游玩总时长（含餐饮）
     travel_modes: list[TravelMode] = [TravelMode.walk, TravelMode.taxi]
+    food_focused: bool = False               # 食物偏好标签激活时为 True
     activity: ActivityConstraints = ActivityConstraints()
     restaurant: RestaurantConstraints = RestaurantConstraints()
-    special_requirements: list[str] = []   # 自由文本，如"需要生日布置"
+    special_requirements: list[str] = []
 
 
 # ---------------------------------------------------------------------------
@@ -153,13 +168,14 @@ class ConstraintSet(BaseModel):
 # ---------------------------------------------------------------------------
 
 class TimelineItem(BaseModel):
+    day: int = 1                             # 第几天（多天行程必须）
     name: str
     address: str
-    start_time: str                 # "14:00"
-    end_time: str                   # "16:00"
+    start_time: str                          # "14:00"
+    end_time: str                            # "16:00"
     category: Literal["activity", "restaurant", "transport"]
     booking_required: bool = False
-    estimated_cost: int = 0         # 人均，元
+    estimated_cost: int = 0                  # 人均，元
     notes: str = ""
 
 
@@ -169,9 +185,9 @@ class Plan(BaseModel):
     summary: str
     timeline: list[TimelineItem]
     total_duration_minutes: int
-    total_cost_estimate: int        # 人均总价
-    constraint_coverage: dict[str, bool] = {}   # {"kids_friendly": True, ...}
-    score: float = Field(default=0.0, ge=0, le=5)   # LLM 使用 0-5 分制
+    total_cost_estimate: int                 # 人均总价
+    constraint_coverage: dict[str, bool] = {}
+    score: float = Field(default=0.0, ge=0, le=5)
 
 
 # ---------------------------------------------------------------------------
@@ -179,7 +195,7 @@ class Plan(BaseModel):
 # ---------------------------------------------------------------------------
 
 class BookingResult(BaseModel):
-    action: str                     # "订座", "购票", "发消息"
+    action: str
     target_name: str
     status: BookingStatus
     detail: str = ""
@@ -195,12 +211,36 @@ class ToolError(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# API 请求 / 响应（FastAPI 用）
+# API 请求 / 响应
 # ---------------------------------------------------------------------------
 
 class UserRequest(BaseModel):
+    """旧接口兼容（纯文字输入），Phase 8 替换为 PlanRequest。"""
     message: str
-    location: Coordinates = Coordinates(lat=31.2304, lng=121.4737)  # 默认上海
+    location: Coordinates = Coordinates(lat=31.2304, lng=121.4737)
+
+
+class PlanRequest(BaseModel):
+    """结构化规划请求（来自新 UI），Phase 8 正式接入。"""
+    # 结构化字段（来自 UI 控件）
+    start_date:      date
+    end_date:        date
+    preferences:     list[ActivityPreference] = []
+    max_distance_km: float = 5.0
+    group_size:      int = 2
+    travel_modes:    list[TravelMode] = [TravelMode.taxi, TravelMode.metro]
+    city:            str = "上海"
+    # 自然语言补充（可为空）
+    free_text:       str = ""
+
+
+class FreeTextConstraints(BaseModel):
+    """LLM 从 free_text 中提取的补充约束，仅覆盖有明确提及的字段。"""
+    start_time:           str | None = None   # "10:00"
+    duration_hours:       float | None = None
+    budget_per_person:    int | None = None
+    special_requirements: list[str] = []
+    scenario:             Scenario | None = None
 
 
 class SessionResponse(BaseModel):

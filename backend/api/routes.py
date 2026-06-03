@@ -39,10 +39,14 @@ _NODE_MESSAGES: dict[str, str] = {
 def _initial_state(user_message: str) -> dict:
     return {
         "user_message": user_message,
+        "user_request": {},             # Phase 8 填入结构化请求
         "scenario": "friends",          # parse_intent 节点会覆盖
         "constraints": None,            # parse_intent 节点会覆盖
+        "preference_weights": {},       # parse_intent 节点会覆盖
         "candidate_venues": [],
         "candidate_restaurants": [],
+        "day_clusters": [],
+        "available_activity_minutes_per_day": 0,
         "candidate_plans": [],
         "availability_results": {},
         "selected_plan": None,
@@ -115,6 +119,8 @@ async def stream_session(session_id: str):
                 async for chunk in graph.astream(graph_input, config, stream_mode="updates"):
                     await queue.put(("chunk", chunk))
             except Exception as exc:
+                import traceback
+                traceback.print_exc()   # 打印完整调用栈到终端
                 await queue.put(("error", exc))
             finally:
                 await queue.put(("done", _SENTINEL))

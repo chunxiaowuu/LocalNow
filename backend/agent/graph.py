@@ -30,20 +30,59 @@ from config import config
 
 
 # ---------------------------------------------------------------------------
+# 共享辅助函数
+# ---------------------------------------------------------------------------
+
+def _plan_is_available(plan, results: dict, venue_candidates: list, rest_candidates: list) -> bool:
+    """
+    检查方案中所有活动和餐厅是否都可用。
+    不依赖 LLM 生成的 booking_required 字段——餐厅始终验证可用性，
+    避免因 LLM 漏设该字段导致不可用方案被错误推给用户。
+    """
+    for item in plan.timeline:
+        if item.category == "activity":
+            matched = next(
+                (v for v in venue_candidates if v["name"] == item.name), None
+            )
+        elif item.category == "restaurant":
+            matched = next(
+                (r for r in rest_candidates if r["name"] == item.name), None
+            )
+        else:
+            continue  # transport 等其他类型不检查
+
+        if matched is None:
+            continue  # 候选池里找不到对应记录，跳过（不阻断）
+
+        result = results.get(matched["id"])
+        if result is not None and not result.available:
+            # 明确查过且不可用才阻断；未查过（None）不视为不可用
+            return False
+
+    return True
+
+
+# ---------------------------------------------------------------------------
 # Human-in-the-Loop 节点
 # ---------------------------------------------------------------------------
 
 def human_review(state: AgentState) -> dict:
     """
     暂停执行，等待用户从候选方案中选择一个并确认。
-    LangGraph interrupt() 将当前状态持久化到 MemorySaver，
-    待前端 POST /session/{id}/confirm 后从此处恢复。
-
-    interrupt() 的返回值即用户通过 API 传入的 confirm payload：
-    {"confirmed": true, "selected_plan_id": "plan-xxxx"}
+    只将所有环节均可用的方案推给用户，避免用户选到部分不可用的方案。
     """
-    plans = state["candidate_plans"][-config.max_candidate_plans:]
-    payload = interrupt({"plans": [p.model_dump() for p in plans]})
+    results = state.get("availability_results") or {}
+    venue_candidates = state.get("candidate_venues", [])
+    rest_candidates = state.get("candidate_restaurants", [])
+    recent_plans = state["candidate_plans"][-config.max_candidate_plans:]
+
+    # 只展示完全可用的方案
+    available_plans = [
+        p for p in recent_plans
+        if _plan_is_available(p, results, venue_candidates, rest_candidates)
+    ]
+
+    payload = interrupt({"plans": [p.model_dump() for p in available_plans]})
 
     confirmed: bool = payload.get("confirmed", False)
     selected_id: str = payload.get("selected_plan_id", "")
@@ -51,7 +90,7 @@ def human_review(state: AgentState) -> dict:
     if not confirmed:
         return {"user_confirmed": False, "selected_plan": None}
 
-    selected = next((p for p in plans if p.id == selected_id), None)
+    selected = next((p for p in available_plans if p.id == selected_id), None)
     return {"user_confirmed": True, "selected_plan": selected}
 
 
@@ -68,38 +107,13 @@ def _route_after_availability(state: AgentState) -> str:
     """
     results = state.get("availability_results") or {}
     recent_plans = state["candidate_plans"][-config.max_candidate_plans:]
+    venue_candidates = state.get("candidate_venues", [])
+    rest_candidates = state.get("candidate_restaurants", [])
 
-    def plan_is_available(plan) -> bool:
-        """检查方案中所有需要预订的环节是否都可用。"""
-        venue_candidates = state.get("candidate_venues", [])
-        rest_candidates = state.get("candidate_restaurants", [])
-
-        for item in plan.timeline:
-            if not item.booking_required:
-                continue
-
-            if item.category == "activity":
-                matched = next(
-                    (v for v in venue_candidates if v["name"] == item.name), None
-                )
-            elif item.category == "restaurant":
-                matched = next(
-                    (r for r in rest_candidates if r["name"] == item.name), None
-                )
-            else:
-                continue
-
-            if matched is None:
-                continue  # 候选池里找不到对应记录，跳过（不阻断）
-
-            result = results.get(matched["id"])
-            if result is not None and not result.available:
-                # 明确查过且不可用才阻断；未查过（None）不视为不可用
-                return False
-
-        return True
-
-    any_available = any(plan_is_available(p) for p in recent_plans)
+    any_available = any(
+        _plan_is_available(p, results, venue_candidates, rest_candidates)
+        for p in recent_plans
+    )
 
     if any_available:
         return "human_review"
