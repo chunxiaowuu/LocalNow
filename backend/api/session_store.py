@@ -13,6 +13,7 @@ from typing import Any
 class Session:
     session_id: str
     user_message: str
+    user_request: dict = field(default_factory=dict)     # 结构化 PlanRequest（新路径）
     status: str = "created"          # created | running | interrupted | resuming | done | error
     resume_payload: dict = field(default_factory=dict)   # /confirm 收到的用户选择
     result: dict = field(default_factory=dict)           # 最终状态快照
@@ -22,8 +23,8 @@ class Session:
 _store: dict[str, Session] = {}
 
 
-def create(session_id: str, user_message: str) -> Session:
-    s = Session(session_id=session_id, user_message=user_message)
+def create(session_id: str, user_message: str, user_request: dict | None = None) -> Session:
+    s = Session(session_id=session_id, user_message=user_message, user_request=user_request or {})
     _store[session_id] = s
     return s
 

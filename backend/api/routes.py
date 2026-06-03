@@ -12,13 +12,13 @@ import asyncio
 import json
 import uuid
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request as FastAPIRequest
 from langgraph.types import Command
 from sse_starlette.sse import EventSourceResponse
 
 from agent.graph import graph
 from api import session_store
-from models.schemas import ConfirmRequest, SessionResponse, UserRequest
+from models.schemas import ConfirmRequest, PlanRequest, SessionResponse, UserRequest
 
 router = APIRouter()
 
@@ -36,10 +36,10 @@ _NODE_MESSAGES: dict[str, str] = {
 }
 
 # 初始化 AgentState 时的默认值（各字段必须存在，parse_intent 节点会覆盖相关字段）
-def _initial_state(user_message: str) -> dict:
+def _initial_state(user_message: str, user_request: dict | None = None) -> dict:
     return {
         "user_message": user_message,
-        "user_request": {},             # Phase 8 填入结构化请求
+        "user_request": user_request or {},
         "scenario": "friends",          # parse_intent 节点会覆盖
         "constraints": None,            # parse_intent 节点会覆盖
         "preference_weights": {},       # parse_intent 节点会覆盖
@@ -53,6 +53,8 @@ def _initial_state(user_message: str) -> dict:
         "user_confirmed": False,
         "booking_results": [],
         "replan_count": 0,
+        "replan_feedback": "",
+        "replan_base_plan_id": "",
         "error": None,
         "summary_message": "",
     }
@@ -63,10 +65,33 @@ def _initial_state(user_message: str) -> dict:
 # ---------------------------------------------------------------------------
 
 @router.post("/session", response_model=SessionResponse)
-async def create_session(body: UserRequest):
-    """创建规划会话，返回 session_id。此时 Agent 尚未启动，等待 /stream 连接后开始。"""
+async def create_session(raw: FastAPIRequest):
+    """
+    创建规划会话，支持两种请求格式：
+    - PlanRequest（新 UI）：结构化字段，parse_intent 走直接映射路径
+    - UserRequest（旧格式）：{message: str}，parse_intent 走全量 LLM 路径
+    """
+    data = await raw.json()
     session_id = str(uuid.uuid4())
-    session_store.create(session_id, body.message)
+
+    if "message" in data and "start_date" not in data:
+        # 旧格式：{message: str}
+        body = UserRequest(**data)
+        session_store.create(session_id, body.message)
+    else:
+        # 新格式：PlanRequest
+        body = PlanRequest(**data)
+        duration_days = (body.end_date - body.start_date).days + 1
+        pref_str = "、".join(body.preferences) if body.preferences else "综合活动"
+        user_message = (
+            f"{body.group_size}人，{body.city}，"
+            f"{body.start_date} 至 {body.end_date}（{duration_days}天），"
+            f"偏好：{pref_str}。"
+        )
+        if body.free_text:
+            user_message += body.free_text
+        session_store.create(session_id, user_message, user_request=body.model_dump(mode="json"))
+
     return SessionResponse(session_id=session_id, status="created")
 
 
@@ -92,7 +117,7 @@ async def stream_session(session_id: str):
 
         # 根据会话状态决定传什么给 graph.astream
         if session.status == "created":
-            graph_input = _initial_state(session.user_message)
+            graph_input = _initial_state(session.user_message, session.user_request)
             session_store.update(session_id, status="running")
         elif session.status == "resuming":
             graph_input = Command(resume=session.resume_payload)
@@ -221,6 +246,7 @@ async def confirm_session(session_id: str, body: ConfirmRequest):
         resume_payload={
             "confirmed": body.confirmed,
             "selected_plan_id": body.selected_plan_id,
+            "feedback": body.feedback,
         },
     )
     return {"status": "ok", "message": "确认已收到，请重新连接 /stream 继续执行"}
