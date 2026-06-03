@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { Phase, ProgressEvent } from "@/lib/types";
+import { Phase, PlanRequest, ProgressEvent } from "@/lib/types";
 import { createSession, openStream, confirmPlan } from "@/lib/api";
-import { ChatInput } from "@/components/planner/ChatInput";
+import { PlannerInput } from "@/components/planner/PlannerInput";
 import { AgentProgress } from "@/components/planner/AgentProgress";
 import { PlanCards } from "@/components/planner/PlanCards";
 import { ExecSummary } from "@/components/planner/ExecSummary";
@@ -57,10 +57,10 @@ export default function Home() {
   }, []);
 
   // 用户提交输入，创建会话并开始流
-  const handleSubmit = useCallback(async (message: string) => {
+  const handleSubmit = useCallback(async (req: PlanRequest) => {
     try {
       setPhase({ kind: "running", events: [] });
-      const sessionId = await createSession(message);
+      const sessionId = await createSession(req);
       startStream(sessionId);
     } catch {
       setPhase({ kind: "error", message: "创建会话失败，请检查后端是否启动" });
@@ -81,12 +81,12 @@ export default function Home() {
   }, [phase, startStream]);
 
   // 用户拒绝，重新规划
-  const handleReject = useCallback(async () => {
+  const handleReject = useCallback(async (feedback: string, basePlanId: string) => {
     if (phase.kind !== "interrupted") return;
     const { sessionId, events } = phase;
     try {
       setPhase({ kind: "running", events });
-      await confirmPlan(sessionId, false, "");
+      await confirmPlan(sessionId, false, basePlanId, feedback);
       startStream(sessionId, events);
     } catch {
       setPhase({ kind: "error", message: "操作失败，请重试" });
@@ -97,7 +97,7 @@ export default function Home() {
     <main className="min-h-screen bg-gray-50">
       <div className="max-w-5xl mx-auto px-4 py-16">
         {phase.kind === "input" && (
-          <ChatInput onSubmit={handleSubmit} loading={false} />
+          <PlannerInput onSubmit={handleSubmit} loading={false} />
         )}
 
         {phase.kind === "running" && (

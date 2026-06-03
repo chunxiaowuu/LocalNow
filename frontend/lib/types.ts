@@ -1,5 +1,19 @@
 // 与后端 Pydantic schema 对应的 TypeScript 类型
 
+export type TravelMode = "walk" | "taxi" | "metro" | "bike";
+export type ActivityPreference = "nature" | "cultural" | "museum" | "social" | "food" | "family";
+
+export interface PlanRequest {
+  start_date: string;          // YYYY-MM-DD
+  end_date: string;
+  preferences: ActivityPreference[];
+  max_distance_km: number;
+  group_size: number;
+  travel_modes: TravelMode[];
+  city: string;
+  free_text: string;
+}
+
 export interface TimelineItem {
   name: string;
   address: string;
