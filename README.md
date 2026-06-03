@@ -41,6 +41,18 @@ uv sync                   # 安装依赖
 uv run uvicorn api.main:app --reload
 ```
 
+`.env` 关键配置：
+
+```env
+# LLM Provider：anthropic | openai | deepseek | gemini | ollama
+LLM_PROVIDER=gemini
+
+# 对应 provider 的 API Key（填其中一个即可）
+ANTHROPIC_API_KEY=sk-ant-...
+GOOGLE_API_KEY=...          # Google AI Studio：aistudio.google.com/apikey
+OPENAI_API_KEY=sk-...
+```
+
 ### 前端启动
 
 ```bash

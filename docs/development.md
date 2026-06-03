@@ -518,3 +518,79 @@ es.addEventListener("interrupt", (e) => {
 await confirmPlan(sessionId, true, planId);
 startStream(sessionId);  // 传 Command(resume=...) 给后端
 ```
+
+---
+
+## Step 8：数据模型扩展 + Gemini 接入 + 可用性修复
+
+### 数据模型扩展（schemas.py / state.py）
+
+为接入高德真实 API 和结构化 UI 输入做准备，扩展了以下模型：
+
+**新增枚举 `ActivityPreference`**：对应前端 UI 偏好标签（nature / cultural / museum / social / food / family），与后端 `ActivityCategory` 解耦——前端标签是用户语言，后端分类是系统语言，中间由 `parse_intent` 做映射。
+
+**`ConstraintSet` 新增字段**：
+
+| 字段 | 说明 |
+|------|------|
+| `city: str = "上海"` | 供高德 API 查询使用 |
+| `start_time: str = "10:00"` | 方案起始时间 |
+| `duration_days: int = 1` | 多天行程支持 |
+| `food_focused: bool = False` | 食物偏好标签激活时，多拉餐厅候选 |
+
+**`Venue` 新增 `typical_visit_minutes: int = 90`**：按 `ActivityCategory` 分类给出默认游玩时长，供 `generate_plans` 做时间预算约束。
+
+**`TimelineItem` 新增 `day: int = 1`**：多天行程中每个活动标注所属天数，配合每天独立时长验证。
+
+**新增 `PlanRequest`**：结构化 UI 请求模型（含 `start_date / end_date / preferences / max_distance_km` 等），与现有 `UserRequest(message: str)` 共存，Phase 8 接入 API 时替换。
+
+**新增 `FreeTextConstraints`**：LLM 从 `free_text` 中提取的补充约束，所有字段可选（`None` 表示未提及），避免覆盖结构化字段的默认值。
+
+**`AgentState` 新增字段**：`user_request`、`preference_weights`、`day_clusters`、`available_activity_minutes_per_day`，详见架构文档 AgentState 设计。
+
+---
+
+### Gemini LLM 接入（llm/factory.py / config.py）
+
+**`config.py` `.env` 路径修复**：将 `env_file=".env"` 改为 `Path(__file__).parent / ".env"`（绝对路径）。原始相对路径以 uvicorn 的工作目录为准，从项目根目录启动时找不到 `backend/.env`，导致 `llm_provider` 回落默认值 `"anthropic"` 并因 key 未设置报认证错误。
+
+**新增 `gemini` provider**：使用 `langchain_openai.ChatOpenAI` + Google AI Studio 的 OpenAI 兼容端点（`https://generativelanguage.googleapis.com/v1beta/openai/`），无需额外 SDK。main/fast 均使用 `gemini-2.5-flash`。
+
+```python
+if provider == "gemini":
+    from langchain_openai import ChatOpenAI
+    return ChatOpenAI(
+        model=model_name,
+        base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+        api_key=config.google_api_key,
+        temperature=0,
+    )
+```
+
+---
+
+### 可用性检查与预订一致性修复
+
+发现三处逻辑不一致，统一修复：
+
+**问题**：`check_availability` 和 `execute_bookings` 不看 `booking_required`，但 `_plan_is_available` 看，导致 `booking_required=False` 的餐厅跳过可用性检查，方案被错误认为可用推给用户，到预订阶段才失败。
+
+**修复原则**：
+
+| 函数 | `booking_required=True` | `booking_required=False` |
+|------|------------------------|--------------------------|
+| `check_availability` | 检查时间槽可用性 | 只检查营业时间 |
+| `_plan_is_available` | 检查所有餐厅/场所（不看此字段） | 同左 |
+| `execute_bookings` | 执行订座 | 跳过（walk-in，无需预约） |
+
+**`human_review` 只展示完全可用方案**：将 `plan_is_available` 提取为模块级函数 `_plan_is_available`，`human_review` 在 `interrupt()` 前过滤，只把每一项都确认可用的方案推给用户。
+
+---
+
+### generate_plans 重规划改进（nodes.py）
+
+**问题**：重规划时 LLM 不知道上次哪些时间段失败，继续生成相同时间，反复触发 `max_replan_count` 上限后报"无法找到合适方案"。
+
+**修复**：两处改进：
+1. 餐厅候选格式化展示 `available_slots`：`可预约时段：17:30、18:00、18:30、19:00`，LLM 直接从有效时段选
+2. 重规划时注入失败原因：`上次规划失败，请避开以下时段/场所：- 老正兴菜馆 15:55 无空位`
