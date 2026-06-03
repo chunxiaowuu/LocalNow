@@ -16,6 +16,9 @@ class Config(BaseSettings):
     langsmith_api_key: str = ""
     langsmith_project: str = "localnow"
 
+    # 高德地图
+    amap_api_key: str = ""
+
     # Agent 行为
     max_replan_count: int = 2
     availability_timeout_s: float = 5.0
