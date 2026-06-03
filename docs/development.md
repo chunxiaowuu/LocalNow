@@ -594,3 +594,61 @@ if provider == "gemini":
 **修复**：两处改进：
 1. 餐厅候选格式化展示 `available_slots`：`可预约时段：17:30、18:00、18:30、19:00`，LLM 直接从有效时段选
 2. 重规划时注入失败原因：`上次规划失败，请避开以下时段/场所：- 老正兴菜馆 15:55 无空位`
+
+---
+
+## Step 9：高德 API 接入 + 架构从 RAG 转向直接 API 召回
+
+### 架构演进：RAG → 高德 API + 程序打分
+
+**原设计**：`search_candidates` 节点调用 `tools/search.py`，通过 ChromaDB in-memory 对 80 条 mock JSON 数据做向量语义检索，同时结合硬约束字段过滤。
+
+**问题**：mock 数据 ID（`v001`、`r001`...）与任何外部系统无关，可用性检查也是 mock，整条链路无真实数据流动。
+
+**新设计**：
+1. `tools/travel.py` — 游玩时长常量、交通时间估算（纯函数）
+2. `tools/geo.py` — haversine 球面距离、greedy 地理聚类（纯函数）
+3. `tools/amap_http.py` — 高德 `/v3/place/text` 客户端，三层 fallback（key 为空→mock，API 异常→mock，API 返空→mock，过滤后为空→返空尊重约束）
+4. `search_candidates` 改为 `async def`，`asyncio.gather + asyncio.to_thread` 并行召回两路数据
+
+**遗留代码（未删除，等待真实预订 API）**：
+- `tools/store.py` — ChromaDB 初始化，仅 `booking.py` 还引用（mock 预订）
+- `tools/search.py` — 两阶检索包装，主流程已不再 import
+- `tools/availability.py` — `check_venue/restaurant_availability` 依赖 store ID，Phase 5 后失效，改用候选数据内联检查
+
+### parse_intent 混合模式（Phase 4）
+
+`parse_intent` 节点改为两条路径：
+
+| 路径 | 触发条件 | LLM 调用 |
+|------|----------|----------|
+| PlanRequest 路径 | `state["user_request"]` 非空（新 UI 提交） | 仅 `free_text` 非空时调用 fast LLM 提取 `FreeTextConstraints` |
+| 旧 UserRequest 路径 | `user_request` 为空（纯文字输入） | 全量 LLM 提取 `ConstraintSet` |
+
+偏好标签直接映射（零 LLM）：
+```python
+cultural → [museum, exhibition, citywalk]
+nature   → [park, citywalk]
+family   → [aquarium, kids_center, park]
+food     → []（food_focused=True，影响餐厅搜索权重）
+```
+
+### 新前端 PlannerInput（Phase 8）
+
+替换原来的纯文字输入框，新增结构化字段：
+- 日期范围选择器（联动校验）
+- 人数步进器（±按钮）
+- 城市输入
+- 偏好标签（pill 多选：博物馆/自然公园/人文历史/休闲社交/亲子/美食）
+- 出行方式（pill 多选：步行/地铁/打车/骑行）
+- 补充说明文本框（选填，触发 LLM 解析）
+
+后端 `POST /session` 同时支持 PlanRequest（新 UI）和旧 `{message: str}` 格式，通过 JSON 字段识别自动路由。
+
+### 关键设计决策
+
+**为什么不用 MCP**：高德 API 调用时机和调用方是程序确定的（search_candidates 节点总是调它），不需要 LLM 动态决策。MCP 适合 ReAct 模式，对确定性 Workflow 只增加复杂度。
+
+**距离计算**：高德 API 返回的 `distance_km` 是相对用户 GPS 的距离，后端无 GPS，改用 haversine 计算场所坐标与城市中心（如上海人民广场）的距离作为近似值。
+
+**available_slots 固定值**：高德不提供实时餐厅预约数据，`available_slots` 填固定时段列表（`11:30/12:00/.../19:30`）。真实场景需接入大众点评/美团预约 API。
