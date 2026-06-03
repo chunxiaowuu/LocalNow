@@ -86,12 +86,18 @@ def human_review(state: AgentState) -> dict:
 
     confirmed: bool = payload.get("confirmed", False)
     selected_id: str = payload.get("selected_plan_id", "")
+    feedback: str    = payload.get("feedback", "")
 
     if not confirmed:
-        return {"user_confirmed": False, "selected_plan": None}
+        return {
+            "user_confirmed": False,
+            "selected_plan": None,
+            "replan_feedback": feedback,
+            "replan_base_plan_id": selected_id,  # "" = 全部重新规划，非空 = 基于此方案调整
+        }
 
     selected = next((p for p in available_plans if p.id == selected_id), None)
-    return {"user_confirmed": True, "selected_plan": selected}
+    return {"user_confirmed": True, "selected_plan": selected, "replan_feedback": "", "replan_base_plan_id": ""}
 
 
 # ---------------------------------------------------------------------------
