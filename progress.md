@@ -25,6 +25,32 @@ Phase 9  集成测试                        进行中（手动测试阶段）
 
 ## 本次会话重要改动（未提交）
 
+### 冷启动/冷门检索：餐饮维度的语义降级阶梯
+
+**问题**：用户提具体诉求"我想吃爆啦兔头面"，但本地无完全匹配场所。原实现 `special_requirements` 是信息黑洞——LLM 提取出来后既没驱动高德搜索关键词，也没进 planner prompt，搜索退化成通用 `"餐厅 美食 老字号"`。
+
+**方案（3 层语义降级阶梯）**：
+1. **提取阶梯**（`prompts/intent_parser/system.txt` + `schemas.py`）：LLM 把"爆啦兔头面"转成 `cuisine_request`（原话）+ `cuisine_keywords` 检索阶梯（具体→宽泛 `["兔头面","川菜面馆","特色面馆","面馆"]`）
+2. **逐级检索**（`agent/nodes.py` `_fetch_restaurants_laddered` + `tools/amap_http.py`）：沿阶梯逐级搜高德，命中即停；记录 `{requested, matched_term, exact}`。`fetch_restaurants` 新增 `keywords` / `allow_mock_fallback` 参数，阶梯期间抑制 mock 兜底，便于继续降级
+3. **透明推荐**（`generate_plans`）：prompt 告知 LLM 原始诉求 + 是否精确命中；降级命中时挑选最接近的人气餐厅（按 rating 排序），并在 notes 写明"未找到 XXX，这是相近推荐"
+
+**配套**：
+- `parse_replan_feedback` / `_ReplanConstraintUpdate` 也支持重规划时改餐饮（"餐厅换成火锅"），复用 replan→search_candidates 回路
+- `special_requirements` 现在也进 planner prompt（部分惠及场所维度）
+- 新增 state 字段 `cuisine_match`
+
+**已知缺口**：目前只做了**餐饮维度**。场所/活动维度的冷门检索（如"想看莫奈特展""某家特定密室"）走的是 `preferred_categories` 固定关键词，同样会冷启动失败——是对称的待办项。
+
+---
+
+### Bug 修复：城市选择恒返回上海结果（已提 PR，分支 `fix/city-center-geocoding`）
+
+**根本原因**：`search_candidates` 用 5 城 hardcoded dict 取距离过滤中心点，未命中城市静默 fallback 上海坐标，导致目标城市场所被 haversine 全过滤，候选池空，LLM 幻觉生成上海场所。
+
+**修复**：`amap_http.py` 新增 `geocode_city()`——先查 15 城缓存，未命中调高德 Geocoding API 动态解析并缓存；`nodes.py` 改用之，删除 hardcoded dict。境外城市（Zurich）仍受限于高德 API 覆盖范围，记为待办。
+
+---
+
 ### Bug 修复：重规划候选池不刷新，方案与上次雷同
 
 **根本原因**：用户拒绝方案后，图路由直接跳回 `generate_plans`，跳过了 `search_candidates`。候选场所池完全未变，LLM 在同一批场所里重新组合，加上 `temperature=0`，结果高度雷同。即使用户反馈"换成公园"，若原始偏好没有 park 类型，候选池里也根本没有公园。
