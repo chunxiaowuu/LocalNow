@@ -179,6 +179,7 @@ def parse_intent(state: AgentState) -> dict:
             group_size=req.group_size,
             city=req.city,
             duration_days=duration_days,
+            duration_hours=req.duration_hours,
             max_distance_km=req.max_distance_km,
             travel_modes=req.travel_modes,
             food_focused=food_focused,

@@ -234,6 +234,7 @@ class PlanRequest(BaseModel):
     preferences:     list[ActivityPreference] = []
     max_distance_km: float = 5.0
     group_size:      int = 2
+    duration_hours:  float = 5.0             # 每天活动时长（含餐饮）
     travel_modes:    list[TravelMode] = [TravelMode.taxi, TravelMode.metro]
     city:            str = "上海"
     # 自然语言补充（可为空）

@@ -19,6 +19,12 @@ const TRAVEL_MODES: { id: TravelMode; label: string }[] = [
   { id: "bike",  label: "骑行" },
 ];
 
+const DURATIONS: { hours: number; label: string }[] = [
+  { hours: 3, label: "半天" },
+  { hours: 5, label: "大半天" },
+  { hours: 8, label: "全天" },
+];
+
 function todayString() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -37,6 +43,7 @@ export function PlannerInput({ onSubmit, loading }: Props) {
   const [city,      setCity]        = useState("上海");
   const [prefs,     setPrefs]       = useState<Set<ActivityPreference>>(new Set());
   const [modes,     setModes]       = useState<Set<TravelMode>>(new Set(["taxi", "metro"]));
+  const [durationHours, setDurationHours] = useState(5);
   const [freeText,  setFreeText]    = useState("");
 
   const toggle = <T extends string>(set: Set<T>, id: T): Set<T> => {
@@ -55,6 +62,7 @@ export function PlannerInput({ onSubmit, loading }: Props) {
       preferences:     [...prefs],
       max_distance_km: 8,
       group_size:      groupSize,
+      duration_hours:  durationHours,
       travel_modes:    modes.size > 0 ? [...modes] : ["taxi", "metro"],
       city:            city.trim(),
       free_text:       freeText.trim(),
@@ -90,6 +98,28 @@ export function PlannerInput({ onSubmit, loading }: Props) {
               onChange={e => setEndDate(e.target.value)}
               className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
             />
+          </div>
+        </div>
+
+        {/* Per-day duration */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">每天时长</label>
+          <div className="flex gap-2">
+            {DURATIONS.map(({ hours, label }) => {
+              const active = durationHours === hours;
+              return (
+                <button
+                  key={hours} onClick={() => setDurationHours(hours)}
+                  className={`px-4 py-1.5 rounded-full text-sm border transition-all duration-150 ${
+                    active
+                      ? "bg-gray-900 text-white border-gray-900"
+                      : "text-gray-600 border-gray-200 hover:border-gray-400 hover:text-gray-900"
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
           </div>
         </div>
 
