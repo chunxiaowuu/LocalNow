@@ -173,29 +173,41 @@ def fetch_venues(
     kids_friendly: bool = False,
     prefer_indoor: bool = False,
     max_price: int = 9999,
+    keywords: str | None = None,
+    allow_mock_fallback: bool = True,
     n: int = 20,
 ) -> list[Venue]:
     """
     搜索场所并映射到 Venue 模型。
-    API Key 为空或请求失败时 fallback 到 data/venues_full.json。
+
+    keywords：显式覆盖搜索关键词（冷启动检索阶梯逐级传入）；为 None 时按 categories 自动选词。
+    allow_mock_fallback：True 时无结果/出错降级到本地 mock；False 时返回空列表，
+      供上层冷启动阶梯继续尝试下一级关键词。
     """
     if not config.amap_api_key:
-        return _fallback_venues(n)
+        return _fallback_venues(n) if allow_mock_fallback else []
+
+    def _empty() -> list[Venue]:
+        return _fallback_venues(n) if allow_mock_fallback else []
 
     try:
-        if categories:
-            keywords = " ".join(
-                _CATEGORY_KEYWORDS.get(c, "") for c in categories if _CATEGORY_KEYWORDS.get(c)
-            ) or _DEFAULT_VENUE_KEYWORDS
+        if keywords is not None:
+            # 冷启动检索词为用户精确诉求，不再叠加 categories / 亲子，避免污染 query
+            search_kw = keywords
         else:
-            keywords = _DEFAULT_VENUE_KEYWORDS
+            if categories:
+                search_kw = " ".join(
+                    _CATEGORY_KEYWORDS.get(c, "") for c in categories if _CATEGORY_KEYWORDS.get(c)
+                ) or _DEFAULT_VENUE_KEYWORDS
+            else:
+                search_kw = _DEFAULT_VENUE_KEYWORDS
 
-        if kids_friendly:
-            keywords += " 亲子"
+            if kids_friendly:
+                search_kw += " 亲子"
 
-        pois = _search_pois(keywords, city, offset=min(n, 25))
+        pois = _search_pois(search_kw, city, offset=min(n, 25))
         if not pois:
-            return _fallback_venues(n)
+            return _empty()
 
         venues: list[Venue] = []
         for poi in pois:
@@ -229,11 +241,13 @@ def fetch_venues(
             except Exception:
                 continue
 
+        # 全部被硬约束（如价格）过滤掉 → 返回空列表（冷启动阶梯据此继续降级），
+        # 不退回 mock：那是"预算内无匹配"的真实结果，不是数据源失败。
         return venues[:n]
 
     except Exception as e:
         logger.warning("fetch_venues failed, using fallback: %s", e)
-        return _fallback_venues(n)
+        return _empty()
 
 
 def fetch_restaurants(
@@ -244,29 +258,39 @@ def fetch_restaurants(
     noise_levels: list[NoiseLevel] | None = None,
     min_party_size: int = 1,
     max_price: int = 9999,
+    keywords: str | None = None,
+    allow_mock_fallback: bool = True,
     n: int = 20,
 ) -> list[Restaurant]:
     """
     搜索餐厅并映射到 Restaurant 模型。
     available_slots 使用固定默认值（高德不提供实时预约数据）。
-    API Key 为空或请求失败时 fallback 到 data/restaurants_full.json。
+
+    keywords：显式覆盖搜索关键词（冷启动检索阶梯逐级传入）；为 None 时按 flag 自动选词。
+    allow_mock_fallback：True 时无结果/出错降级到本地 mock；False 时返回空列表，
+      供上层冷启动阶梯继续尝试下一级关键词。
     """
     if not config.amap_api_key:
-        return _fallback_restaurants(n)
+        return _fallback_restaurants(n) if allow_mock_fallback else []
+
+    def _empty() -> list[Restaurant]:
+        return _fallback_restaurants(n) if allow_mock_fallback else []
 
     try:
-        if has_kids_menu:
-            keywords = "亲子餐厅 家庭餐厅"
+        if keywords is not None:
+            search_kw = keywords
+        elif has_kids_menu:
+            search_kw = "亲子餐厅 家庭餐厅"
         elif has_low_calorie:
-            keywords = "健康轻食 沙拉"
+            search_kw = "健康轻食 沙拉"
         elif noise_levels and NoiseLevel.quiet in noise_levels:
-            keywords = "安静咖啡厅 茶室"
+            search_kw = "安静咖啡厅 茶室"
         else:
-            keywords = "餐厅 美食 老字号"
+            search_kw = "餐厅 美食 老字号"
 
-        pois = _search_pois(keywords, city, types="050000", offset=min(n, 25))
+        pois = _search_pois(search_kw, city, types="050000", offset=min(n, 25))
         if not pois:
-            return _fallback_restaurants(n)
+            return _empty()
 
         restaurants: list[Restaurant] = []
         for poi in pois:
@@ -304,11 +328,13 @@ def fetch_restaurants(
             except Exception:
                 continue
 
+        # 全部被硬约束（如价格）过滤掉 → 返回空列表（冷启动阶梯据此继续降级），
+        # 不退回 mock：那是"预算内无匹配"的真实结果，不是数据源失败。
         return restaurants[:n]
 
     except Exception as e:
         logger.warning("fetch_restaurants failed, using fallback: %s", e)
-        return _fallback_restaurants(n)
+        return _empty()
 
 
 # ---------------------------------------------------------------------------

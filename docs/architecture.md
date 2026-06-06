@@ -139,8 +139,31 @@ TravelPlanner（Xie et al. ICML 2024）的实验提供了直接反面数据：Re
 
 → 高德 API 返回最多 25 条真实 POI
 → haversine 距离过滤（城市中心半径内）
-→ 时长过滤（typical_visit_minutes ≤ 当日可用时间）
+→ 时长过滤（typical_visit_minutes ≤ 整段出行时长）
 ```
+
+#### 冷启动检索阶梯（retrieval-side 语义降级）
+
+用户提具体冷门诉求（"爆啦兔头面""莫奈特展"）时，精确关键词常召回为空。解法在**召回侧**做语义降级，而非过滤候选结果：
+
+```
+parse_intent（fast LLM，世界知识）
+  → 产出「具体→宽泛」检索阶梯
+     爆啦兔头面 → [兔头面, 川菜面馆, 面馆]
+     莫奈特展   → [莫奈特展, 艺术展览, 美术馆, 博物馆 展览馆]
+
+_laddered_fetch（通用 helper，餐饮/场所共用）
+  → 沿阶梯逐级调高德，**过滤后仍有候选**才算命中（keep 谓词内置于阶梯）
+  → 窄词被距离/时长过滤清空时自动降级到下一级
+  → 全空时安全网放宽距离再召回，保证 planner 永不拿到空池
+
+generate_plans
+  → 告知 LLM 原始诉求 + 是否精确命中；降级时挑最接近的人气候选并在 notes 透明说明
+  → prompt 禁止编造：name 必须逐字取自候选列表
+```
+
+- "相似"由 LLM 在召回侧完成，"热门"由召回后的 rating 排序完成，无向量相似度过滤。
+- `fetch_venues` / `fetch_restaurants` 提供 `keywords`（阶梯逐级注入）和 `allow_mock_fallback`（阶梯期间抑制 mock 兜底）两个参数支撑该机制。
 
 ### 4. 显式约束打分（排序）
 

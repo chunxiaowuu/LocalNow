@@ -1,7 +1,16 @@
 # LocalNow 开发进度
 
-> 当前分支：`feature/amap-integration`
+> 当前分支：`feature/cold-start-retrieval`
 > 上次更新：2026-06-06
+
+---
+
+## 进行中的 PR
+
+| PR | 分支 | 内容 | 状态 |
+|----|------|------|------|
+| [#3](https://github.com/chunxiaowuu/LocalNow/pull/3) | `feature/cold-start-retrieval` | 冷启动检索阶梯（餐饮+场所）+ 空池安全网 | 待 review |
+| [#?](https://github.com/chunxiaowuu/LocalNow/pull/new/fix/city-center-geocoding) | `fix/city-center-geocoding` | 城市选择恒返回上海修复（geocode） | 待提 PR |
 
 ---
 
@@ -13,7 +22,8 @@ Phase 2  工具层新文件                    ✅ 完成（已提交）
 Phase 3  配置（amap_api_key）            ✅ 完成
 Phase 4  parse_intent 混合模式           ✅ 完成（已提交）
 Phase 5  search_candidates 真实召回      ✅ 完成（已提交）
-Phase 6  Prompt 更新                     待做（planner system prompt 未更新）
+Phase 5b 冷启动检索阶梯（餐饮+场所）     ✅ 完成（PR #3）
+Phase 6  Prompt 更新                     部分（planner 加了禁编造/冷启动指令）
 Phase 7  generate_plans + 时间验证       待做
 Phase 8  API 层（PlanRequest 接入）      ✅ 完成（已提交）
 Phase 9  集成测试                        进行中（手动测试阶段）
@@ -24,6 +34,57 @@ Phase 9  集成测试                        进行中（手动测试阶段）
 ---
 
 ## 本次会话重要改动（未提交）
+
+### 冷启动/冷门检索：召回侧语义降级阶梯（餐饮 + 场所/活动两维度）
+
+**问题**：用户提具体诉求"我想吃爆啦兔头面""想看莫奈特展"，但高德 POI 库无完全匹配。原实现 `special_requirements` 是信息黑洞——LLM 提取出来后既没驱动高德搜索关键词，也没进 planner prompt，搜索退化成通用词。
+
+**核心思想（retrieval-side，不是过滤）**：相似词用于**召回**而非过滤候选结果。
+- LLM（`parse_intent` 的 fast 模型）用世界知识把诉求扩成「具体→宽泛」检索阶梯
+- 阶梯逐级作为 `keywords` 发给高德 `/v3/place/text` 召回；第一个有结果的词即采用 → 降级到相近的热门候选
+- "相似"在召回侧由 LLM 完成；"热门"在召回后由 rating 排序完成。无 embedding / 同义词典 / 向量相似度过滤
+
+**3 层结构**：
+1. **提取阶梯**（`prompts/intent_parser/system.txt` + `schemas.py`）：LLM 产出
+   - 餐饮：`cuisine_request`（原话）+ `cuisine_keywords`（如 `["兔头面","川菜面馆","特色面馆","面馆"]`）
+   - 场所：`venue_request` + `venue_keywords`（如 `["莫奈特展","艺术展览","美术馆","博物馆 展览馆"]`）
+2. **逐级检索**（`agent/nodes.py` `_laddered_fetch` + `tools/amap_http.py`）：**通用 helper**，餐饮和场所共用（`functools.partial` 绑定 city/过滤参数，helper 只负责注入 keywords）。沿阶梯逐级搜高德命中即停，记录 `{requested, matched_term, exact}`。`fetch_venues` / `fetch_restaurants` 均新增 `keywords` / `allow_mock_fallback` 参数，阶梯期间抑制 mock 兜底以便继续降级
+3. **透明推荐**（`generate_plans`）：统一的 `_cold_start_section()` 同时处理两维度，prompt 告知 LLM 原始诉求 + 是否精确命中；降级命中时挑选主题/品类最接近的人气候选（rating 排序），并在 notes 写明"未找到 XXX，这是相近推荐"
+
+**配套**：
+- `parse_replan_feedback` / `_ReplanConstraintUpdate` 支持重规划时改餐饮（"换成火锅"）和改活动（"想看特展"），复用 replan→search_candidates 回路
+- `special_requirements` 也进 planner prompt
+- 新增 state 字段 `cuisine_match`、`venue_match`
+
+**顺带修正的语义 bug**：原 `fetch_*` 在"召回到 POI 但全部被价格硬过滤"时会退回 mock，掩盖了"预算内无匹配"的真实结果（且 mock 数据本身可能违反约束）。改为：仅 `not pois`（数据源真的没返回）或异常时才退 mock；全部被过滤 → 返回空列表（冷启动阶梯据此继续降级）。`test_price_filter` 守住此行为。
+
+**仍存缺口**：城市维度境外受高德覆盖限制；时间/档期维度（"本周末有什么展"）无日期感知检索，`available_slots` 仍写死。
+
+#### 后续修复：候选池为空（"莫奈特展+凉拌米线"实测暴露的两个 bug）
+
+实测短时长出行时方案显示"候选场所/餐厅列表为空"。根因两个，均已修：
+
+1. **时长硬过滤过严**：`search_candidates` 原用 `available_activity_minutes = duration×60 − 60(餐) − 60(交通)` 作为场所游玩时长上限。3 小时出行只剩 60 分钟，而博物馆默认 90 分钟 → 所有艺术/博物馆类场所被全滤掉。改为以「整段出行时长」`duration×60` 为硬上限（莫奈展 90min ≤ 180min 通过），精细时间编排交给 planner。
+2. **阶梯先于硬过滤、命中判定错位**：`_laddered_fetch` 原以"原始召回数量>0"判定命中。窄词（"莫奈特展"只召回 1 个馆）一旦被距离/时长过滤清空，却因"有原始结果"提前终止阶梯，候选池为空且无法继续降级。改为 `_laddered_fetch` 接收 `keep` 谓词，**过滤内置于阶梯**，以「过滤后存活数」判定命中——窄词被滤空则自动降级到下一级（实测距离收到 1km 时，"莫奈特展"被滤空 → 自动降级到"艺术展览"召回到候选）。
+
+#### 再加固：杜绝"候选池为空→LLM 编造通用占位场所"
+
+实测出现 LLM 返回"上海市博物馆""本地特色餐厅"这类通用占位名（notes 自述"无候选数据"）。这是候选池为空时 LLM 幻觉的产物。两道防线：
+
+1. **安全网保证候选非空**（`search_candidates`）：阶梯 + mock 兜底后若仍为空（多因距离过滤过严，或非 Shanghai 城市在本分支无 geocode 导致距离计算错误），放宽距离约束再召回一次（`keep_*_relaxed`，仅保留时长约束），并在 match 标记 `distance_relaxed=True`。宁可给一个略超距离的真实场所，也不让池子为空。
+2. **Prompt 禁止编造**（`prompts/planner/system.txt`）：明确要求 timeline 的 name 必须逐字取自候选列表，禁止虚构通用占位名；列表确实为空时留"暂无合适场所"并说明，绝不杜撰店名。
+
+注：实测当前代码对上海正常输入已稳定产出**具体真实**场所（莫奈·梵高空间艺术大展 / 上汤·云南传统过桥米线），此前的通用占位结果来自修复前的后端进程。
+
+---
+
+### Bug 修复：城市选择恒返回上海结果（已提 PR，分支 `fix/city-center-geocoding`）
+
+**根本原因**：`search_candidates` 用 5 城 hardcoded dict 取距离过滤中心点，未命中城市静默 fallback 上海坐标，导致目标城市场所被 haversine 全过滤，候选池空，LLM 幻觉生成上海场所。
+
+**修复**：`amap_http.py` 新增 `geocode_city()`——先查 15 城缓存，未命中调高德 Geocoding API 动态解析并缓存；`nodes.py` 改用之，删除 hardcoded dict。境外城市（Zurich）仍受限于高德 API 覆盖范围，记为待办。
+
+---
 
 ### Bug 修复：重规划候选池不刷新，方案与上次雷同
 

@@ -17,6 +17,7 @@ LangGraph 节点函数。
 import asyncio
 import re
 import uuid
+from functools import partial
 from pathlib import Path
 
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -204,6 +205,14 @@ def parse_intent(state: AgentState) -> dict:
                 constraints.budget_per_person = extras.budget_per_person
             if extras.special_requirements:
                 constraints.special_requirements = extras.special_requirements
+            if extras.cuisine_request:
+                constraints.cuisine_request = extras.cuisine_request
+            if extras.cuisine_keywords:
+                constraints.cuisine_keywords = extras.cuisine_keywords
+            if extras.venue_request:
+                constraints.venue_request = extras.venue_request
+            if extras.venue_keywords:
+                constraints.venue_keywords = extras.venue_keywords
             if extras.scenario is not None:
                 constraints.scenario = extras.scenario
                 scenario = extras.scenario
@@ -237,10 +246,14 @@ class _ReplanConstraintUpdate(BaseModel):
     remove_categories: list[ActivityCategory] = []
     budget_per_person: int | None = None
     max_distance_km: float | None = None
+    cuisine_request: str = ""              # 反馈里新提到的想吃的食物，如 "改成想吃火锅"
+    cuisine_keywords: list[str] = []       # 对应检索阶梯，具体→宽泛
+    venue_request: str = ""                # 反馈里新提到的想去/想体验的活动，如 "想看特展"
+    venue_keywords: list[str] = []         # 对应检索阶梯，具体→宽泛
 
 
 _REPLAN_PARSE_SYSTEM = """\
-你是一个意图提取器。根据用户对活动方案的反馈，提取需要调整的活动类别和数值约束。
+你是一个意图提取器。根据用户对活动方案的反馈，提取需要调整的活动类别、数值约束、餐饮意图和活动意图。
 
 活动类别枚举值：museum, exhibition, park, citywalk, aquarium, kids_center, escape_room
 
@@ -248,6 +261,8 @@ _REPLAN_PARSE_SYSTEM = """\
 - "不喜欢博物馆，换成公园" → remove_categories:[museum,exhibition], add_categories:[park]
 - "太贵了，预算150元" → budget_per_person:150
 - "想去更近的地方，5公里内" → max_distance_km:5
+- "餐厅换成火锅" → cuisine_request:"火锅", cuisine_keywords:["火锅","川渝火锅","餐厅 美食"]
+- "想看那个莫奈特展" → venue_request:"莫奈特展", venue_keywords:["莫奈特展","艺术展览","美术馆","博物馆 展览馆"]
 
 只提取用户明确提到的信息，未提及的字段保持为空/null。\
 """
@@ -295,6 +310,12 @@ def parse_replan_feedback(state: AgentState) -> dict:
         constraints.budget_per_person = update.budget_per_person
     if update.max_distance_km is not None:
         constraints.max_distance_km = update.max_distance_km
+    if update.cuisine_request:
+        constraints.cuisine_request = update.cuisine_request
+        constraints.cuisine_keywords = update.cuisine_keywords
+    if update.venue_request:
+        constraints.venue_request = update.venue_request
+        constraints.venue_keywords = update.venue_keywords
 
     return {
         "constraints": constraints,
@@ -306,6 +327,39 @@ def parse_replan_feedback(state: AgentState) -> dict:
 # 节点 2：候选场所搜索
 # ---------------------------------------------------------------------------
 
+async def _laddered_fetch(fetch_fn, ladder: list[str], requested: str, keep) -> tuple[list, dict]:
+    """
+    通用冷启动检索：沿 ladder（具体→宽泛）逐级调 fetch_fn，**过滤后**仍有候选才算命中。
+
+    冷启动问题：用户提具体诉求（"爆啦兔头面" / "莫奈特展"），本地无完全匹配。
+    解法：LLM 在 parse_intent 阶段把诉求扩成「具体→宽泛」的检索词阶梯，这里逐级
+    向高德发起召回，从而降级到相近的热门候选。
+
+    关键：命中判定基于 keep() 过滤后的存活数量，而非原始召回数量。
+    否则一个窄词（如"莫奈特展"只召回 1 个馆）可能被距离/时长硬过滤清空，
+    却因"有原始结果"提前终止阶梯，导致候选池为空且无法继续降级。
+
+    fetch_fn：functools.partial 绑定好 city / 过滤参数的检索函数，
+      需接受 keywords= 和 allow_mock_fallback= 两个关键字参数。
+    keep：callable(item)->bool，对每个候选做硬过滤（距离/时长等），可带副作用（写 distance_km）。
+    返回 (survivors, match)。match = {requested, matched_term, exact}；
+      requested 为空（用户没提具体诉求）时返回空 dict。
+    """
+    # 沿阶梯逐级尝试，过滤后有存活即停（抑制 mock 兜底，便于继续降级）
+    for tier, term in enumerate(ladder):
+        raw = await asyncio.to_thread(fetch_fn, keywords=term, allow_mock_fallback=False)
+        survivors = [x for x in raw if keep(x)]
+        if survivors:
+            match = {"requested": requested, "matched_term": term, "exact": tier == 0} if requested else {}
+            return survivors, match
+
+    # 阶梯未命中（或无具体诉求）→ 默认搜索，允许 mock 兜底
+    raw = await asyncio.to_thread(fetch_fn)
+    survivors = [x for x in raw if keep(x)]
+    match = {"requested": requested, "matched_term": None, "exact": False} if requested else {}
+    return survivors, match
+
+
 async def search_candidates(state: AgentState) -> dict:
     """
     真实召回：并行调高德 API，硬过滤，程序打分，地理聚类。
@@ -313,55 +367,70 @@ async def search_candidates(state: AgentState) -> dict:
     """
     constraints = state["constraints"]
 
-    # Step 1：每日可用活动时间（总时长 - 餐饮 - 交通预留）
-    available_activity_minutes = max(
-        30,
-        int(constraints.duration_hours * 60) - RESTAURANT_DURATION - 60,
-    )
-
-    # Step 2：并行召回
-    venues_raw, restaurants_raw = await asyncio.gather(
-        asyncio.to_thread(
-            fetch_venues,
-            constraints.city,
-            constraints.activity.preferred_categories,
-            kids_friendly=constraints.activity.kids_friendly,
-            prefer_indoor=constraints.activity.prefer_indoor,
-            max_price=constraints.budget_per_person,
-            n=20,
-        ),
-        asyncio.to_thread(
-            fetch_restaurants,
-            constraints.city,
-            has_kids_menu=constraints.restaurant.has_kids_menu,
-            has_low_calorie=constraints.restaurant.has_low_calorie_options,
-            noise_levels=constraints.restaurant.noise_level or None,
-            min_party_size=constraints.group_size,
-            max_price=constraints.budget_per_person,
-            n=20,
-        ),
-    )
-
-    # Step 3：硬过滤（距城市中心距离 + 时长预算）
+    # Step 1：硬过滤谓词（距城市中心距离 + 场所游玩时长）。
+    # 时长上限取「整段出行时长」而非扣除餐饮/交通后的活动预算——后者过严，
+    # 3 小时出行会把 90 分钟的博物馆全部滤掉。精细的时间编排交给 planner。
+    # city_center 用 geocode_city 动态解析（main 合入），避免非上海城市恒返回上海。
     city_center = geocode_city(constraints.city)
+    full_outing_minutes = int(constraints.duration_hours * 60)
 
-    venues: list = []
-    for v in venues_raw:
-        dist = haversine_km(v.coordinates, city_center)
-        if dist > constraints.max_distance_km:
-            continue
-        if v.typical_visit_minutes > available_activity_minutes:
-            continue
-        v.distance_km = round(dist, 2)
-        venues.append(v)
+    def _set_dist(item) -> float:
+        d = haversine_km(item.coordinates, city_center)
+        item.distance_km = round(d, 2)
+        return d
 
-    restaurants: list = []
-    for r in restaurants_raw:
-        dist = haversine_km(r.coordinates, city_center)
-        if dist > constraints.max_distance_km:
-            continue
-        r.distance_km = round(dist, 2)
-        restaurants.append(r)
+    def keep_venue(v) -> bool:
+        return _set_dist(v) <= constraints.max_distance_km and v.typical_visit_minutes <= full_outing_minutes
+
+    def keep_restaurant(r) -> bool:
+        return _set_dist(r) <= constraints.max_distance_km
+
+    # 放宽版：去掉距离约束（仍保留时长），仅作安全网用——
+    # 宁可给一个略超距离的真实场所，也不能让候选池为空导致 LLM 编造通用占位。
+    def keep_venue_relaxed(v) -> bool:
+        _set_dist(v)
+        return v.typical_visit_minutes <= full_outing_minutes
+
+    def keep_restaurant_relaxed(r) -> bool:
+        _set_dist(r)
+        return True
+
+    # Step 2：并行召回，场所与餐厅都走冷启动阶梯检索（过滤内置于阶梯，过滤后无存活则继续降级）。
+    # partial 绑定 city / 过滤参数，_laddered_fetch 负责注入 keywords 并应用 keep。
+    venue_fetch = partial(
+        fetch_venues,
+        constraints.city,
+        constraints.activity.preferred_categories,
+        kids_friendly=constraints.activity.kids_friendly,
+        prefer_indoor=constraints.activity.prefer_indoor,
+        max_price=constraints.budget_per_person,
+        n=20,
+    )
+    restaurant_fetch = partial(
+        fetch_restaurants,
+        constraints.city,
+        has_kids_menu=constraints.restaurant.has_kids_menu,
+        has_low_calorie=constraints.restaurant.has_low_calorie_options,
+        noise_levels=constraints.restaurant.noise_level or None,
+        min_party_size=constraints.group_size,
+        max_price=constraints.budget_per_person,
+        n=20,
+    )
+    (venues, venue_match), (restaurants, cuisine_match) = await asyncio.gather(
+        _laddered_fetch(venue_fetch, constraints.venue_keywords or [], constraints.venue_request.strip(), keep_venue),
+        _laddered_fetch(restaurant_fetch, constraints.cuisine_keywords or [], constraints.cuisine_request.strip(), keep_restaurant),
+    )
+
+    # 安全网：阶梯 + mock 兜底后仍为空（通常因距离过滤过严）→ 放宽距离再召回一次，
+    # 保证 planner 永远拿到真实候选，杜绝"无候选→LLM 编造通用占位场所"。
+    if not venues:
+        raw = await asyncio.to_thread(venue_fetch)
+        venues = [v for v in raw if keep_venue_relaxed(v)]
+        venue_match = {**venue_match, "distance_relaxed": True} if venue_match else venue_match
+    if not restaurants:
+        raw = await asyncio.to_thread(restaurant_fetch)
+        restaurants = [r for r in raw if keep_restaurant_relaxed(r)]
+        cuisine_match = {**cuisine_match, "distance_relaxed": True} if cuisine_match else cuisine_match
 
     # Step 4：程序打分排序
     preference_weights = state.get("preference_weights") or {}
@@ -384,7 +453,12 @@ async def search_candidates(state: AgentState) -> dict:
         "candidate_venues":      [v.model_dump() for v in venues],
         "candidate_restaurants": [r.model_dump() for r in restaurants],
         "day_clusters":          [[v.model_dump() for v in c] for c in day_clusters],
-        "available_activity_minutes_per_day": available_activity_minutes,
+        # 供 planner 参考的每日活动净时长（扣除一顿餐 + 交通预留）
+        "available_activity_minutes_per_day": max(
+            30, full_outing_minutes - RESTAURANT_DURATION - 60
+        ),
+        "cuisine_match":         cuisine_match,
+        "venue_match":           venue_match,
     }
 
 
@@ -493,6 +567,36 @@ def generate_plans(state: AgentState) -> dict:
                 + "、".join(sorted(shown_names)) + "\n"
             )
 
+    # 冷启动诉求（餐饮 / 活动）：告知 LLM 原始诉求 + 是否精确命中
+    def _cold_start_section(match: dict, kind: str, verb: str, place: str) -> str:
+        req = match.get("requested")
+        if not req:
+            return ""
+        if match.get("exact"):
+            return (
+                f"\n【用户指定{kind}】用户特别{verb}「{req}」，候选{place}中已包含相关选项，"
+                f"请优先安排，并在该{place} notes 中点明这正是用户想要的。\n"
+            )
+        matched = match.get("matched_term")
+        via = f"（已按相近类型「{matched}」检索）" if matched else ""
+        return (
+            f"\n【用户指定{kind}】用户特别{verb}「{req}」，但本地没有完全匹配的{place}{via}。"
+            f"请从候选{place}中挑选主题/品类最接近的人气{place}，"
+            f"并在该{place} notes 中如实告知用户：未找到「{req}」，这是相近的推荐。\n"
+        )
+
+    cuisine_section = _cold_start_section(state.get("cuisine_match") or {}, "餐饮", "想吃", "餐厅")
+    venue_section   = _cold_start_section(state.get("venue_match") or {}, "活动", "想去/想体验", "场所")
+
+    # 其他特殊要求（适老化、靠窗、轮椅通道等）
+    special_section = ""
+    if constraints.special_requirements:
+        special_section = (
+            "\n用户的其他特殊要求："
+            + "、".join(constraints.special_requirements)
+            + "（请尽量在方案安排或 notes 中体现）\n"
+        )
+
     user_content = f"""{replan_prefix}用户需求：{state["user_message"]}
 
 约束条件：
@@ -501,7 +605,7 @@ def generate_plans(state: AgentState) -> dict:
 - 最远距离：{constraints.max_distance_km} km
 - 人均预算：{constraints.budget_per_person} 元
 - 活动时长：{constraints.duration_hours} 小时
-{shown_section}
+{venue_section}{cuisine_section}{special_section}{shown_section}
 候选场所（已通过硬约束过滤）：
 {venues}
 
