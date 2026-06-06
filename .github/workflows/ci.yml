@@ -12,12 +12,13 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    env:
+      UV_PYTHON: "3.12"        # 选 Python 但不激活根级 venv，确保用 backend/.venv
     steps:
       - uses: actions/checkout@v4
       - name: Set up uv
         uses: astral-sh/setup-uv@v5
         with:
-          python-version: "3.12"
           enable-cache: true
       - name: Install deps
         run: uv sync --frozen --dev
