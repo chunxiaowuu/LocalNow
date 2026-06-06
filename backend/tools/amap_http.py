@@ -25,8 +25,28 @@ from tools.travel import VISIT_DURATION
 
 logger = logging.getLogger(__name__)
 
-_AMAP_SEARCH_URL = "https://restapi.amap.com/v3/place/text"
+_AMAP_SEARCH_URL  = "https://restapi.amap.com/v3/place/text"
+_AMAP_GEOCODE_URL = "https://restapi.amap.com/v3/geocode/geo"
 _DATA_DIR = Path(__file__).parent.parent / "data"
+
+# 常用城市坐标缓存，避免重复调 Geocoding API
+_CITY_CENTER_CACHE: dict[str, Coordinates] = {
+    "上海": Coordinates(lat=31.2304, lng=121.4737),
+    "北京": Coordinates(lat=39.9042, lng=116.4074),
+    "深圳": Coordinates(lat=22.5431, lng=114.0579),
+    "广州": Coordinates(lat=23.1291, lng=113.2644),
+    "杭州": Coordinates(lat=30.2741, lng=120.1551),
+    "成都": Coordinates(lat=30.5728, lng=104.0668),
+    "重庆": Coordinates(lat=29.5630, lng=106.5516),
+    "武汉": Coordinates(lat=30.5928, lng=114.3055),
+    "西安": Coordinates(lat=34.3416, lng=108.9398),
+    "南京": Coordinates(lat=32.0603, lng=118.7969),
+    "苏州": Coordinates(lat=31.2990, lng=120.5853),
+    "天津": Coordinates(lat=39.3434, lng=117.3616),
+    "青岛": Coordinates(lat=36.0671, lng=120.3826),
+    "厦门": Coordinates(lat=24.4798, lng=118.0894),
+    "长沙": Coordinates(lat=28.2278, lng=112.9388),
+}
 
 _DEFAULT_SLOTS = [
     "11:30", "12:00", "12:30", "13:00",
@@ -60,6 +80,36 @@ _TYPECODE_MAP: dict[str, ActivityCategory] = {
 # ---------------------------------------------------------------------------
 # 内部工具
 # ---------------------------------------------------------------------------
+
+def geocode_city(city: str) -> Coordinates:
+    """
+    解析城市名为坐标中心点。优先查本地缓存，未命中时调高德 Geocoding API。
+    API 失败时 fallback 到上海，并记录警告。
+    """
+    if city in _CITY_CENTER_CACHE:
+        return _CITY_CENTER_CACHE[city]
+
+    _SHANGHAI = Coordinates(lat=31.2304, lng=121.4737)
+    try:
+        resp = httpx.get(
+            _AMAP_GEOCODE_URL,
+            params={"key": config.amap_api_key, "address": city, "output": "JSON"},
+            timeout=5.0,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        if data.get("status") == "1" and data.get("geocodes"):
+            loc = data["geocodes"][0]["location"]  # "lng,lat"
+            lng_str, lat_str = loc.split(",")
+            coords = Coordinates(lat=float(lat_str), lng=float(lng_str))
+            _CITY_CENTER_CACHE[city] = coords  # 缓存结果
+            return coords
+        logger.warning("geocode_city: no result for '%s', fallback to Shanghai", city)
+    except Exception as e:
+        logger.warning("geocode_city failed for '%s': %s, fallback to Shanghai", city, e)
+
+    return _SHANGHAI
+
 
 def _search_pois(keywords: str, city: str, types: str = "", offset: int = 20) -> list[dict]:
     """调用高德 /v3/place/text，返回原始 POI 列表。失败返回空列表。"""
