@@ -25,21 +25,30 @@ Phase 9  集成测试                        进行中（手动测试阶段）
 
 ## 本次会话重要改动（未提交）
 
-### 冷启动/冷门检索：餐饮维度的语义降级阶梯
+### 冷启动/冷门检索：召回侧语义降级阶梯（餐饮 + 场所/活动两维度）
 
-**问题**：用户提具体诉求"我想吃爆啦兔头面"，但本地无完全匹配场所。原实现 `special_requirements` 是信息黑洞——LLM 提取出来后既没驱动高德搜索关键词，也没进 planner prompt，搜索退化成通用 `"餐厅 美食 老字号"`。
+**问题**：用户提具体诉求"我想吃爆啦兔头面""想看莫奈特展"，但高德 POI 库无完全匹配。原实现 `special_requirements` 是信息黑洞——LLM 提取出来后既没驱动高德搜索关键词，也没进 planner prompt，搜索退化成通用词。
 
-**方案（3 层语义降级阶梯）**：
-1. **提取阶梯**（`prompts/intent_parser/system.txt` + `schemas.py`）：LLM 把"爆啦兔头面"转成 `cuisine_request`（原话）+ `cuisine_keywords` 检索阶梯（具体→宽泛 `["兔头面","川菜面馆","特色面馆","面馆"]`）
-2. **逐级检索**（`agent/nodes.py` `_fetch_restaurants_laddered` + `tools/amap_http.py`）：沿阶梯逐级搜高德，命中即停；记录 `{requested, matched_term, exact}`。`fetch_restaurants` 新增 `keywords` / `allow_mock_fallback` 参数，阶梯期间抑制 mock 兜底，便于继续降级
-3. **透明推荐**（`generate_plans`）：prompt 告知 LLM 原始诉求 + 是否精确命中；降级命中时挑选最接近的人气餐厅（按 rating 排序），并在 notes 写明"未找到 XXX，这是相近推荐"
+**核心思想（retrieval-side，不是过滤）**：相似词用于**召回**而非过滤候选结果。
+- LLM（`parse_intent` 的 fast 模型）用世界知识把诉求扩成「具体→宽泛」检索阶梯
+- 阶梯逐级作为 `keywords` 发给高德 `/v3/place/text` 召回；第一个有结果的词即采用 → 降级到相近的热门候选
+- "相似"在召回侧由 LLM 完成；"热门"在召回后由 rating 排序完成。无 embedding / 同义词典 / 向量相似度过滤
+
+**3 层结构**：
+1. **提取阶梯**（`prompts/intent_parser/system.txt` + `schemas.py`）：LLM 产出
+   - 餐饮：`cuisine_request`（原话）+ `cuisine_keywords`（如 `["兔头面","川菜面馆","特色面馆","面馆"]`）
+   - 场所：`venue_request` + `venue_keywords`（如 `["莫奈特展","艺术展览","美术馆","博物馆 展览馆"]`）
+2. **逐级检索**（`agent/nodes.py` `_laddered_fetch` + `tools/amap_http.py`）：**通用 helper**，餐饮和场所共用（`functools.partial` 绑定 city/过滤参数，helper 只负责注入 keywords）。沿阶梯逐级搜高德命中即停，记录 `{requested, matched_term, exact}`。`fetch_venues` / `fetch_restaurants` 均新增 `keywords` / `allow_mock_fallback` 参数，阶梯期间抑制 mock 兜底以便继续降级
+3. **透明推荐**（`generate_plans`）：统一的 `_cold_start_section()` 同时处理两维度，prompt 告知 LLM 原始诉求 + 是否精确命中；降级命中时挑选主题/品类最接近的人气候选（rating 排序），并在 notes 写明"未找到 XXX，这是相近推荐"
 
 **配套**：
-- `parse_replan_feedback` / `_ReplanConstraintUpdate` 也支持重规划时改餐饮（"餐厅换成火锅"），复用 replan→search_candidates 回路
-- `special_requirements` 现在也进 planner prompt（部分惠及场所维度）
-- 新增 state 字段 `cuisine_match`
+- `parse_replan_feedback` / `_ReplanConstraintUpdate` 支持重规划时改餐饮（"换成火锅"）和改活动（"想看特展"），复用 replan→search_candidates 回路
+- `special_requirements` 也进 planner prompt
+- 新增 state 字段 `cuisine_match`、`venue_match`
 
-**已知缺口**：目前只做了**餐饮维度**。场所/活动维度的冷门检索（如"想看莫奈特展""某家特定密室"）走的是 `preferred_categories` 固定关键词，同样会冷启动失败——是对称的待办项。
+**顺带修正的语义 bug**：原 `fetch_*` 在"召回到 POI 但全部被价格硬过滤"时会退回 mock，掩盖了"预算内无匹配"的真实结果（且 mock 数据本身可能违反约束）。改为：仅 `not pois`（数据源真的没返回）或异常时才退 mock；全部被过滤 → 返回空列表（冷启动阶梯据此继续降级）。`test_price_filter` 守住此行为。
+
+**仍存缺口**：城市维度境外受高德覆盖限制；时间/档期维度（"本周末有什么展"）无日期感知检索，`available_slots` 仍写死。
 
 ---
 

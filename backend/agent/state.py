@@ -21,8 +21,9 @@ class AgentState(TypedDict):
     candidate_restaurants: list[dict]
     day_clusters: list[list[dict]]       # 每天的场所候选簇，[[day1], [day2], ...]
     available_activity_minutes_per_day: int  # 每天可用活动时间（分钟）
-    # 冷启动餐饮检索结果：{requested, matched_term, exact}，无指定餐饮时为空 dict
-    cuisine_match: dict
+    # 冷启动检索结果：{requested, matched_term, exact}，无对应诉求时为空 dict
+    cuisine_match: dict                   # 餐饮维度
+    venue_match: dict                     # 场所/活动维度
 
     # 规划阶段
     # Annotated + operator.add：每次 replan 追加新方案，不覆盖旧的

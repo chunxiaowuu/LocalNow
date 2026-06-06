@@ -164,6 +164,9 @@ class ConstraintSet(BaseModel):
     # 用户具体想吃的食物（冷启动/冷门检索）
     cuisine_request: str = ""                 # 用户原话，如 "爆啦兔头面"
     cuisine_keywords: list[str] = []          # 检索阶梯，具体→宽泛，如 ["兔头面", "川菜面馆", "特色面馆"]
+    # 用户具体想去/想体验的活动（冷启动/冷门检索）
+    venue_request: str = ""                   # 用户原话，如 "莫奈特展"
+    venue_keywords: list[str] = []            # 检索阶梯，具体→宽泛，如 ["莫奈特展", "艺术展览", "美术馆"]
 
 
 # ---------------------------------------------------------------------------
@@ -246,6 +249,8 @@ class FreeTextConstraints(BaseModel):
     scenario:             Scenario | None = None
     cuisine_request:      str = ""            # 用户具体想吃的食物原话，如 "爆啦兔头面"
     cuisine_keywords:     list[str] = []      # 检索阶梯，从具体到宽泛，如 ["兔头面", "川菜面馆", "特色面馆"]
+    venue_request:        str = ""            # 用户具体想去/想体验的活动原话，如 "莫奈特展"
+    venue_keywords:       list[str] = []      # 检索阶梯，从具体到宽泛，如 ["莫奈特展", "艺术展览", "美术馆"]
 
 
 class SessionResponse(BaseModel):
