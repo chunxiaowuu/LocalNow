@@ -1,6 +1,6 @@
 # LocalNow 开发进度
 
-> 当前分支：`feature/cold-start-retrieval`
+> 当前分支：`feature/duration-timeline-validation`
 > 上次更新：2026-06-06
 
 ---
@@ -9,8 +9,9 @@
 
 | PR | 分支 | 内容 | 状态 |
 |----|------|------|------|
-| [#3](https://github.com/chunxiaowuu/LocalNow/pull/3) | `feature/cold-start-retrieval` | 冷启动检索阶梯（餐饮+场所）+ 空池安全网 | 待 review |
-| [#?](https://github.com/chunxiaowuu/LocalNow/pull/new/fix/city-center-geocoding) | `fix/city-center-geocoding` | 城市选择恒返回上海修复（geocode） | 待提 PR |
+| [#2](https://github.com/chunxiaowuu/LocalNow/pull/2) | `fix/city-center-geocoding` | 城市选择恒返回上海修复（geocode） | ✅ 已合并 |
+| [#3](https://github.com/chunxiaowuu/LocalNow/pull/3) | `feature/cold-start-retrieval` | 冷启动检索阶梯（餐饮+场所）+ 空池安全网 | ✅ 已合并 |
+| #? | `feature/duration-timeline-validation` | 时长尊重 + 时间校验 + 前端时长控件 | 待提 PR |
 
 ---
 
@@ -22,14 +23,35 @@ Phase 2  工具层新文件                    ✅ 完成（已提交）
 Phase 3  配置（amap_api_key）            ✅ 完成
 Phase 4  parse_intent 混合模式           ✅ 完成（已提交）
 Phase 5  search_candidates 真实召回      ✅ 完成（已提交）
-Phase 5b 冷启动检索阶梯（餐饮+场所）     ✅ 完成（PR #3）
-Phase 6  Prompt 更新                     部分（planner 加了禁编造/冷启动指令）
-Phase 7  generate_plans + 时间验证       待做
+Phase 5b 冷启动检索阶梯（餐饮+场所）     ✅ 完成（PR #3 已合并）
+Phase 6  Prompt 更新                     ✅ 完成（planner 尊重时长/天数 + 禁编造 + 冷启动）
+Phase 7  时长尊重 + 时间验证             ✅ 完成（本分支）
 Phase 8  API 层（PlanRequest 接入）      ✅ 完成（已提交）
 Phase 9  集成测试                        进行中（手动测试阶段）
 ```
 
-**当前测试状态**：116 个单元测试全部通过
+**当前测试状态**：125 个单元测试全部通过
+
+---
+
+## Phase 7：时长尊重 + 时间校验 + 前端时长控件（本分支）
+
+**问题**：planner prompt 把方案写死成"上海/半天/1活动+1餐/2方案"，无视传入的 `duration_hours`（且结构化表单根本没有时长字段，恒为默认 5.0），多天行程也塌缩成单个半天；方案时间/费用正确性全靠 LLM 自填 `constraint_coverage`，无任何程序校验。
+
+**Step A — planner 尊重时长与天数**（`prompts/planner/system.txt` + `generate_plans`）：
+- 环节数随每天时长伸缩：≤3.5h→1活动+1餐；3.5–6h→2活动+1餐；>6h→2–3活动+2餐
+- 多天行程逐天编排并正确设置 `day` 字段；去掉写死的城市/半天/"2方案"
+- prompt 现在传入 城市、行程天数、每天活动时长（此前城市和天数从未传给 LLM）
+
+**Step B — `validate_timeline` 程序校验 + 重试回路**（`agent/nodes.py` + `config.py`）：
+- 校验：时间格式/起止顺序、同天不重叠、每天总时长≤duration（含容差）、人均费用≤预算、天数完整覆盖
+- `generate_plans` 改为「生成→校验→失败回灌错误重试」，最多 `max_timeline_retries`(2) 次；仍失败保留最后结果
+- 新增 9 个单测（`tests/test_timeline_validation.py`）
+
+**Step C — 前端每日时长控件**（`PlannerInput.tsx` + `types.ts` + `schemas.py` + `parse_intent`）：
+- 加 半天/大半天/全天（3/5/8h）pill；`duration_hours` 串进 PlanRequest → ConstraintSet；free_text 仍可覆盖
+
+实测：3h→1活动+1餐，8h→3活动+2餐，2天→每天正确 day 字段且通过校验。
 
 ---
 

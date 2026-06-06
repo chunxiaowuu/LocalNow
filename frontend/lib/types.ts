@@ -9,6 +9,7 @@ export interface PlanRequest {
   preferences: ActivityPreference[];
   max_distance_km: number;
   group_size: number;
+  duration_hours: number;      // 每天活动时长（含餐饮）
   travel_modes: TravelMode[];
   city: string;
   free_text: string;

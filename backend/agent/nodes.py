@@ -179,6 +179,7 @@ def parse_intent(state: AgentState) -> dict:
             group_size=req.group_size,
             city=req.city,
             duration_days=duration_days,
+            duration_hours=req.duration_hours,
             max_distance_km=req.max_distance_km,
             travel_modes=req.travel_modes,
             food_focused=food_focused,
@@ -471,6 +472,59 @@ class _PlansResponse(BaseModel):
     plans: list[Plan]
 
 
+def validate_timeline(plan: Plan, constraints: ConstraintSet) -> list[str]:
+    """
+    程序校验单个方案的时间/费用合理性，返回错误列表（空 = 通过）。
+    LLM 自填的 constraint_coverage 不可信，这里做客观核对，失败项回灌 prompt 重试。
+
+    校验项：
+      ① 时间格式 / 单环节起止顺序
+      ② 同一天内环节不重叠（连续性）
+      ③ 每天总时长（首环节开始 → 末环节结束）不超过 duration_hours（含容差）
+      ④ 人均费用不超过预算
+      ⑤ 行程天数被完整覆盖
+    """
+    errors: list[str] = []
+    by_day: dict[int, list] = {}
+    for item in plan.timeline:
+        by_day.setdefault(item.day, []).append(item)
+
+    full_day_minutes = int(constraints.duration_hours * 60)
+    tol = config.timeline_tolerance_min
+
+    for day, items in sorted(by_day.items()):
+        parsed = []
+        for it in items:
+            try:
+                s, e = _parse_hhmm(it.start_time), _parse_hhmm(it.end_time)
+            except Exception:
+                errors.append(f"第{day}天「{it.name}」时间格式无法解析（{it.start_time}-{it.end_time}）")
+                continue
+            if e < s:
+                errors.append(f"第{day}天「{it.name}」结束早于开始（{it.start_time}-{it.end_time}）")
+            parsed.append((s, e, it))
+
+        parsed.sort(key=lambda x: x[0])
+        for (_, e1, i1), (s2, _, i2) in zip(parsed, parsed[1:]):
+            if s2 < e1:
+                errors.append(f"第{day}天「{i1.name}」与「{i2.name}」时间重叠（{i1.end_time} > {i2.start_time}）")
+
+        if parsed:
+            span = parsed[-1][1] - parsed[0][0]
+            if span > full_day_minutes + tol:
+                errors.append(f"第{day}天总时长 {span} 分钟超过每天上限 {full_day_minutes} 分钟")
+
+    total_cost = sum(it.estimated_cost for it in plan.timeline)
+    if total_cost > constraints.budget_per_person:
+        errors.append(f"人均费用 {total_cost} 元超过预算 {constraints.budget_per_person} 元")
+
+    missing = set(range(1, constraints.duration_days + 1)) - set(by_day)
+    if missing:
+        errors.append(f"缺少第 {sorted(missing)} 天的安排")
+
+    return errors
+
+
 def generate_plans(state: AgentState) -> dict:
     """
     使用 main LLM 生成 max_candidate_plans 个风格不同的方案骨架。
@@ -600,11 +654,13 @@ def generate_plans(state: AgentState) -> dict:
     user_content = f"""{replan_prefix}用户需求：{state["user_message"]}
 
 约束条件：
+- 城市：{constraints.city}
 - 场景：{constraints.scenario.value}
 - 人数：{constraints.group_size} 人
+- 行程天数：{constraints.duration_days} 天
+- 每天活动时长：{constraints.duration_hours} 小时
 - 最远距离：{constraints.max_distance_km} km
 - 人均预算：{constraints.budget_per_person} 元
-- 活动时长：{constraints.duration_hours} 小时
 {venue_section}{cuisine_section}{special_section}{shown_section}
 候选场所（已通过硬约束过滤）：
 {venues}
@@ -615,12 +671,30 @@ def generate_plans(state: AgentState) -> dict:
 请生成 {config.max_candidate_plans} 个风格不同的活动方案。
 """
 
-    response: _PlansResponse = llm.invoke([
-        SystemMessage(content=system_prompt),
-        HumanMessage(content=user_content),
-    ])
+    # 生成 → 校验 → 失败回灌错误重试（最多 max_timeline_retries 次）。
+    # 校验是程序硬核对，比 LLM 自填的 constraint_coverage 可靠。
+    fix_feedback = ""
+    plans: list[Plan] = []
+    for attempt in range(config.max_timeline_retries + 1):
+        response: _PlansResponse = llm.invoke([
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=user_content + fix_feedback),
+        ])
+        plans = response.plans
 
-    plans = response.plans
+        all_errors: list[str] = []
+        for p in plans:
+            all_errors += [f"方案「{p.title}」：{e}" for e in validate_timeline(p, constraints)]
+
+        if not all_errors:
+            break
+        # 还有重试机会才回灌；否则保留本轮结果（有方案胜过无方案）
+        if attempt < config.max_timeline_retries:
+            fix_feedback = (
+                "\n\n⚠️ 上一轮方案存在以下时间/费用问题，请逐条修正后重新输出全部方案：\n"
+                + "\n".join(f"- {e}" for e in all_errors) + "\n"
+            )
+
     for p in plans:
         p.id = f"plan-{uuid.uuid4().hex[:8]}"
 
