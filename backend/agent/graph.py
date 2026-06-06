@@ -6,9 +6,10 @@ LangGraph 状态图组装。
       → check_availability
           ├─ 有可用方案 → human_review（interrupt）
           │       ├─ 用户确认 → execute_bookings → send_notification → END
-          │       └─ 用户拒绝 → generate_plans（重规划）
-          └─ 全部不可用
-                  ├─ replan_count < max → generate_plans（重规划）
+          │       └─ 用户拒绝 → increment_replan → parse_replan_feedback
+          │                       → search_candidates（刷新候选池）→ generate_plans
+          └─ 全部不可用（无用户反馈）
+                  ├─ replan_count < max → increment_replan → generate_plans
                   └─ replan_count >= max → handle_error → END
 """
 
@@ -22,6 +23,7 @@ from agent.nodes import (
     generate_plans,
     handle_error,
     parse_intent,
+    parse_replan_feedback,
     search_candidates,
     send_notification,
 )
@@ -143,6 +145,16 @@ def _increment_replan(state: AgentState) -> dict:
     return {"replan_count": state.get("replan_count", 0) + 1}
 
 
+def _route_after_increment_replan(state: AgentState) -> str:
+    """
+    有用户反馈（human_review 拒绝路径）→ 解析反馈并刷新候选池。
+    无用户反馈（availability 全失败路径）→ 直接重规划。
+    """
+    if state.get("replan_feedback", "").strip():
+        return "parse_replan_feedback"
+    return "generate_plans"
+
+
 # ---------------------------------------------------------------------------
 # 图的组装
 # ---------------------------------------------------------------------------
@@ -160,6 +172,7 @@ def build_graph() -> StateGraph:
     builder.add_node("send_notification", send_notification)
     builder.add_node("handle_error", handle_error)
     builder.add_node("increment_replan", _increment_replan)
+    builder.add_node("parse_replan_feedback", parse_replan_feedback)
 
     # 主路径
     builder.add_edge(START, "parse_intent")
@@ -178,8 +191,16 @@ def build_graph() -> StateGraph:
         },
     )
 
-    # 重规划回路
-    builder.add_edge("increment_replan", "generate_plans")
+    # 重规划回路：有用户反馈 → 解析 → 刷新候选池；无反馈 → 直接重规划
+    builder.add_conditional_edges(
+        "increment_replan",
+        _route_after_increment_replan,
+        {
+            "parse_replan_feedback": "parse_replan_feedback",
+            "generate_plans": "generate_plans",
+        },
+    )
+    builder.add_edge("parse_replan_feedback", "search_candidates")
 
     # human_review 后的条件分支
     builder.add_conditional_edges(

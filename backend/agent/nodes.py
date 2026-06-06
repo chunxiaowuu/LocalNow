@@ -237,6 +237,81 @@ def parse_intent(state: AgentState) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# 节点 1b：重规划反馈解析（仅用户拒绝触发，search_candidates 之前）
+# ---------------------------------------------------------------------------
+
+class _ReplanConstraintUpdate(BaseModel):
+    """fast LLM 从用户反馈文字中提取需要调整的约束。"""
+    add_categories: list[ActivityCategory] = []
+    remove_categories: list[ActivityCategory] = []
+    budget_per_person: int | None = None
+    max_distance_km: float | None = None
+
+
+_REPLAN_PARSE_SYSTEM = """\
+你是一个意图提取器。根据用户对活动方案的反馈，提取需要调整的活动类别和数值约束。
+
+活动类别枚举值：museum, exhibition, park, citywalk, aquarium, kids_center, escape_room
+
+示例：
+- "不喜欢博物馆，换成公园" → remove_categories:[museum,exhibition], add_categories:[park]
+- "太贵了，预算150元" → budget_per_person:150
+- "想去更近的地方，5公里内" → max_distance_km:5
+
+只提取用户明确提到的信息，未提及的字段保持为空/null。\
+"""
+
+
+def parse_replan_feedback(state: AgentState) -> dict:
+    """
+    将用户反馈文字转换为约束更新，重新写入 constraints 和 preference_weights。
+    后续 search_candidates 会用更新后的 constraints 重新召回候选池。
+    """
+    feedback = state.get("replan_feedback", "").strip()
+    if not feedback:
+        return {}
+
+    llm = get_llm("fast").with_structured_output(_ReplanConstraintUpdate)
+    update: _ReplanConstraintUpdate = llm.invoke([
+        SystemMessage(content=_REPLAN_PARSE_SYSTEM),
+        HumanMessage(content=feedback),
+    ])
+
+    constraints = state["constraints"]
+    preference_weights = dict(state.get("preference_weights") or {})
+
+    # 更新 preferred_categories
+    current_cats = list(constraints.activity.preferred_categories or [])
+    remove_set = {c.value for c in update.remove_categories}
+    current_cats = [c for c in current_cats if c.value not in remove_set]
+    seen = {c.value for c in current_cats}
+    for cat in update.add_categories:
+        if cat.value not in seen:
+            current_cats.append(cat)
+            seen.add(cat.value)
+    constraints.activity.preferred_categories = current_cats
+
+    # 同步 preference_weights
+    for cat in update.remove_categories:
+        pref_key = _CAT_TO_PREF.get(cat.value, "")
+        preference_weights.pop(pref_key, None)
+    for cat in update.add_categories:
+        pref_key = _CAT_TO_PREF.get(cat.value, "")
+        if pref_key:
+            preference_weights[pref_key] = preference_weights.get(pref_key, 0.0) + 1.0
+
+    if update.budget_per_person is not None:
+        constraints.budget_per_person = update.budget_per_person
+    if update.max_distance_km is not None:
+        constraints.max_distance_km = update.max_distance_km
+
+    return {
+        "constraints": constraints,
+        "preference_weights": preference_weights,
+    }
+
+
+# ---------------------------------------------------------------------------
 # 节点 2：候选场所搜索
 # ---------------------------------------------------------------------------
 
@@ -412,6 +487,21 @@ def generate_plans(state: AgentState) -> dict:
                 + prev_context + "\n"
             )
 
+    # 已展示过的场所名（重规划时提示 LLM 避免重复）
+    shown_section = ""
+    if replan_count > 0:
+        shown_names = {
+            item.name
+            for p in state.get("candidate_plans", [])
+            for item in p.timeline
+            if item.category in ("activity", "restaurant")
+        }
+        if shown_names:
+            shown_section = (
+                "\n已展示给用户的场所（**请优先选择新场所，避免重复**）：\n"
+                + "、".join(sorted(shown_names)) + "\n"
+            )
+
     user_content = f"""{replan_prefix}用户需求：{state["user_message"]}
 
 约束条件：
@@ -420,7 +510,7 @@ def generate_plans(state: AgentState) -> dict:
 - 最远距离：{constraints.max_distance_km} km
 - 人均预算：{constraints.budget_per_person} 元
 - 活动时长：{constraints.duration_hours} 小时
-
+{shown_section}
 候选场所（已通过硬约束过滤）：
 {venues}
 
