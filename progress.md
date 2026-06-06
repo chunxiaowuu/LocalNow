@@ -1,7 +1,16 @@
 # LocalNow 开发进度
 
-> 当前分支：`feature/amap-integration`
+> 当前分支：`feature/cold-start-retrieval`
 > 上次更新：2026-06-06
+
+---
+
+## 进行中的 PR
+
+| PR | 分支 | 内容 | 状态 |
+|----|------|------|------|
+| [#3](https://github.com/chunxiaowuu/LocalNow/pull/3) | `feature/cold-start-retrieval` | 冷启动检索阶梯（餐饮+场所）+ 空池安全网 | 待 review |
+| [#?](https://github.com/chunxiaowuu/LocalNow/pull/new/fix/city-center-geocoding) | `fix/city-center-geocoding` | 城市选择恒返回上海修复（geocode） | 待提 PR |
 
 ---
 
@@ -13,7 +22,8 @@ Phase 2  工具层新文件                    ✅ 完成（已提交）
 Phase 3  配置（amap_api_key）            ✅ 完成
 Phase 4  parse_intent 混合模式           ✅ 完成（已提交）
 Phase 5  search_candidates 真实召回      ✅ 完成（已提交）
-Phase 6  Prompt 更新                     待做（planner system prompt 未更新）
+Phase 5b 冷启动检索阶梯（餐饮+场所）     ✅ 完成（PR #3）
+Phase 6  Prompt 更新                     部分（planner 加了禁编造/冷启动指令）
 Phase 7  generate_plans + 时间验证       待做
 Phase 8  API 层（PlanRequest 接入）      ✅ 完成（已提交）
 Phase 9  集成测试                        进行中（手动测试阶段）
