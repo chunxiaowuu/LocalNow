@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Plan } from "@/lib/types";
+import { buildItineraryText, copyText, exportItinerary } from "@/lib/share";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -32,8 +33,17 @@ export function PlanCards({ plans, onConfirm, onReject }: Props) {
   const [rejecting,   setRejecting]   = useState(false);
   const [rejectMode,  setRejectMode]  = useState<RejectMode>("full");
   const [feedback,    setFeedback]    = useState("");
+  const [copiedId,    setCopiedId]    = useState<string | null>(null);
 
   const selectedPlan = plans.find(p => p.id === selected);
+
+  const handleCopy = async (plan: Plan) => {
+    const ok = await copyText(buildItineraryText(plan));
+    if (ok) {
+      setCopiedId(plan.id);
+      setTimeout(() => setCopiedId(null), 2000);
+    }
+  };
 
   const openReject = (mode: RejectMode) => {
     setRejectMode(mode);
@@ -91,9 +101,41 @@ export function PlanCards({ plans, onConfirm, onReject }: Props) {
                       {CATEGORY_LABEL[item.category]}
                     </span>
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-gray-800 truncate">{item.name}</p>
+                      {item.map_uri ? (
+                        <a
+                          href={item.map_uri}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-sm font-medium text-gray-800 hover:text-blue-600 hover:underline inline-flex items-center gap-1 max-w-full"
+                          title="在高德地图中查看"
+                        >
+                          <span className="truncate">{item.name}</span>
+                          <svg className="w-3 h-3 flex-shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                        </a>
+                      ) : (
+                        <p className="text-sm font-medium text-gray-800 truncate">{item.name}</p>
+                      )}
                       {item.notes && (
                         <p className="text-xs text-gray-400 truncate">{item.notes}</p>
+                      )}
+                      {item.booking_uri && (
+                        <a
+                          href={item.booking_uri}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-xs text-orange-600 hover:text-orange-700 hover:underline inline-flex items-center gap-0.5 mt-0.5"
+                          title="在高德搜索中预订"
+                        >
+                          去预订
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                          </svg>
+                        </a>
                       )}
                     </div>
                   </div>
@@ -116,6 +158,23 @@ export function PlanCards({ plans, onConfirm, onReject }: Props) {
                       </Badge>
                     ))}
                 </div>
+              </div>
+
+              {/* 分享 / 导出 */}
+              <Separator />
+              <div className="flex gap-4">
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleCopy(plan); }}
+                  className="text-xs text-gray-500 hover:text-gray-900 inline-flex items-center gap-1"
+                >
+                  {copiedId === plan.id ? "已复制 ✓" : "复制行程"}
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); exportItinerary(plan); }}
+                  className="text-xs text-gray-500 hover:text-gray-900 inline-flex items-center gap-1"
+                >
+                  导出 PDF
+                </button>
               </div>
             </CardContent>
           </Card>

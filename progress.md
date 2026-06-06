@@ -11,7 +11,17 @@
 |----|------|------|------|
 | [#2](https://github.com/chunxiaowuu/LocalNow/pull/2) | `fix/city-center-geocoding` | 城市选择恒返回上海修复（geocode） | ✅ 已合并 |
 | [#3](https://github.com/chunxiaowuu/LocalNow/pull/3) | `feature/cold-start-retrieval` | 冷启动检索阶梯（餐饮+场所）+ 空池安全网 | ✅ 已合并 |
-| #? | `feature/duration-timeline-validation` | 时长尊重 + 时间校验 + 前端时长控件 | 待提 PR |
+| [#4](https://github.com/chunxiaowuu/LocalNow/pull/4) | `feature/duration-timeline-validation` | 时长尊重 + 时间校验 + 前端时长控件 | ✅ 已合并 |
+| [#5](https://github.com/chunxiaowuu/LocalNow/pull/5) | `fix/replan-feedback-status-label` | 重规划状态中文文案 | 待 review |
+| #? | `feature/itinerary-links-share` | 高德链接 + 去预订 + 分享导出 | 待提 PR |
+
+---
+
+## 行程链接 / 预订 / 分享（feature/itinerary-links-share）
+
+1. **每个项目可点击跳转高德地图**：`TimelineItem.map_uri` 由后端 `generate_plans` 按候选池真实坐标回填（`tools/links.amap_marker_uri`），LLM 不参与构链；前端 `PlanCards` 把场所名渲染成链接（带定位图标，`stopPropagation` 不触发选卡）。
+2. **需预订项目「去预订」**：`TimelineItem.booking_uri` → 高德搜索页（`amap_search_uri`），餐厅默认有、活动按 `booking_required`；前端橙色「去预订」链接。
+3. **分享 / 导出**：`lib/share.ts` 提供「复制行程」（带 emoji + 地图/预订链接的文字，按天分组）和「导出 PDF」（打开打印友好的自包含 HTML → 打印/另存 PDF，弹窗被拦截则下载 .html）。
 
 ---
 

@@ -42,6 +42,7 @@ from models.schemas import (
 )
 from tools.amap_http import fetch_restaurants, fetch_venues, geocode_city
 from tools.geo import greedy_cluster, haversine_km
+from tools.links import amap_marker_uri, amap_search_uri
 from tools.notification import send_trip_summary
 from tools.travel import RESTAURANT_DURATION, neighborhood_radius_km
 
@@ -695,8 +696,21 @@ def generate_plans(state: AgentState) -> dict:
                 + "\n".join(f"- {e}" for e in all_errors) + "\n"
             )
 
+    # 用候选池真实坐标回填 map_uri（程序权威设置，忽略 LLM 可能填的值，避免编造链接）
+    coord_lookup: dict[str, dict] = {}
+    for d in venues + restaurants:
+        coords = d.get("coordinates") or {}
+        if d.get("name") and "lat" in coords and "lng" in coords:
+            coord_lookup[d["name"]] = coords
+
     for p in plans:
         p.id = f"plan-{uuid.uuid4().hex[:8]}"
+        for item in p.timeline:
+            c = coord_lookup.get(item.name)
+            item.map_uri = amap_marker_uri(item.name, c["lng"], c["lat"]) if c else ""
+            # 需预订的项目（餐厅默认需订座；活动按 LLM 的 booking_required）→ 高德搜索页
+            if item.category == "restaurant" or item.booking_required:
+                item.booking_uri = amap_search_uri(item.name, constraints.city)
 
     return {"candidate_plans": plans}
 
