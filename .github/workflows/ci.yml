@@ -21,7 +21,9 @@ jobs:
         with:
           enable-cache: true
       - name: Install deps
-        run: uv sync --frozen --dev
+        # 本项目 dev 工具放在 [project.optional-dependencies]，需 --extra dev
+        # （--dev 对应的是 PEP 735 dependency-groups，本项目未用）
+        run: uv sync --frozen --extra dev
       - name: Ruff
         run: uv run ruff check .
       - name: Pytest
