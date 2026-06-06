@@ -91,7 +91,24 @@ export function PlanCards({ plans, onConfirm, onReject }: Props) {
                       {CATEGORY_LABEL[item.category]}
                     </span>
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-gray-800 truncate">{item.name}</p>
+                      {item.map_uri ? (
+                        <a
+                          href={item.map_uri}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-sm font-medium text-gray-800 hover:text-blue-600 hover:underline inline-flex items-center gap-1 max-w-full"
+                          title="在高德地图中查看"
+                        >
+                          <span className="truncate">{item.name}</span>
+                          <svg className="w-3 h-3 flex-shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                        </a>
+                      ) : (
+                        <p className="text-sm font-medium text-gray-800 truncate">{item.name}</p>
+                      )}
                       {item.notes && (
                         <p className="text-xs text-gray-400 truncate">{item.notes}</p>
                       )}

@@ -24,6 +24,7 @@ export interface TimelineItem {
   booking_required: boolean;
   estimated_cost: number;
   notes: string;
+  map_uri: string;            // 高德地图跳转链接，空串表示无
 }
 
 export interface Plan {

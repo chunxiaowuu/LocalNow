@@ -183,6 +183,7 @@ class TimelineItem(BaseModel):
     booking_required: bool = False
     estimated_cost: int = 0                  # 人均，元
     notes: str = ""
+    map_uri: str = ""                        # 高德地图跳转链接，由后端按候选池真实坐标回填（LLM 勿填）
 
 
 class Plan(BaseModel):
