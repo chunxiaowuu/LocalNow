@@ -298,13 +298,13 @@ def main():
     elif arg in SCENARIOS:
         targets = [(arg, SCENARIOS[arg])]
     else:
-        print(f"用法：uv run python tests/test_e2e.py [family|friends|all]")
+        print("用法：uv run python tests/test_e2e.py [family|friends|all]")
         sys.exit(1)
 
     results = []
     for name, message in targets:
         result = run_scenario(name, message)
-        print(f"\n--- 验证结果 ---")
+        print("\n--- 验证结果 ---")
 
         if result.error:
             print(f"  ✗ 流程错误：{result.error}")

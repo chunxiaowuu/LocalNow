@@ -23,7 +23,7 @@ def check_duplicate_ids(data: list[dict], label: str) -> int:
     if duplicates:
         print(f"   ✗ 发现重复 ID：{duplicates}")
         return len(duplicates)
-    print(f"   ✓ 无重复 ID")
+    print("   ✓ 无重复 ID")
     return 0
 
 
@@ -41,19 +41,19 @@ def evaluate_restaurants(data: list[dict]) -> int:
         except Exception as e:
             errors.append(f"第 {i + 1} 条（id={r.get('id', '?')}）：{e}")
 
-    print(f"\n① 结构验证")
+    print("\n① 结构验证")
     print(f"   合法：{len(valid)} 条 / 失败：{len(errors)} 条")
     for e in errors:
         print(f"   ✗ {e}")
 
-    print(f"\n   ID 唯一性检查：")
+    print("\n   ID 唯一性检查：")
     dup_count = check_duplicate_ids(data, "餐厅")
 
     if not valid:
         return len(errors) + dup_count
 
     # ② 分布
-    print(f"\n② 场景覆盖分布")
+    print("\n② 场景覆盖分布")
     kids_menu = sum(1 for r in valid if r.has_kids_menu)
     low_cal = sum(1 for r in valid if r.has_low_calorie_options)
     noise = Counter(r.noise_level.value for r in valid)
@@ -63,7 +63,7 @@ def evaluate_restaurants(data: list[dict]) -> int:
     print(f"   人均价格：¥{min(r.price_per_person for r in valid)} ~ ¥{max(r.price_per_person for r in valid)}，均值 ¥{sum(r.price_per_person for r in valid) // len(valid)}")
 
     # ③ 语义多样性
-    print(f"\n③ 语义多样性（tags）")
+    print("\n③ 语义多样性（tags）")
     all_tags = [tag for r in valid for tag in r.tags]
     unique_tags = set(all_tags)
     tag_counter = Counter(all_tags)
@@ -72,7 +72,7 @@ def evaluate_restaurants(data: list[dict]) -> int:
     print(f"   平均每条 tags：{len(all_tags) / len(valid):.1f}")
 
     # ④ 抽样
-    print(f"\n④ 随机抽样（前 3 条）")
+    print("\n④ 随机抽样（前 3 条）")
     for r in valid[:3]:
         print(f"   [{r.cuisine}] {r.name} | ¥{r.price_per_person}/人 | {r.noise_level.value} | {r.tags[:3]}")
 
@@ -92,18 +92,18 @@ def evaluate_venues(data: list[dict]) -> int:
         except Exception as e:
             errors.append(f"第 {i + 1} 条（id={v.get('id', '?')}）：{e}")
 
-    print(f"\n① 结构验证")
+    print("\n① 结构验证")
     print(f"   合法：{len(valid)} 条 / 失败：{len(errors)} 条")
     for e in errors:
         print(f"   ✗ {e}")
 
-    print(f"\n   ID 唯一性检查：")
+    print("\n   ID 唯一性检查：")
     dup_count = check_duplicate_ids(data, "场所")
 
     if not valid:
         return len(errors) + dup_count
 
-    print(f"\n② 场景覆盖分布")
+    print("\n② 场景覆盖分布")
     kids = sum(1 for v in valid if v.kids_friendly)
     indoor = sum(1 for v in valid if v.indoor)
     categories = Counter(v.category.value for v in valid)
@@ -111,12 +111,12 @@ def evaluate_venues(data: list[dict]) -> int:
     print(f"   室内场所：{indoor} 条 ({indoor * 100 // len(valid)}%)")
     print(f"   类型分布：{dict(categories)}")
 
-    print(f"\n③ 语义多样性（tags）")
+    print("\n③ 语义多样性（tags）")
     all_tags = [tag for v in valid for tag in v.tags]
     print(f"   总 tags：{len(all_tags)}，唯一 tags：{len(set(all_tags))}")
     print(f"   平均每条 tags：{len(all_tags) / len(valid):.1f}")
 
-    print(f"\n④ 随机抽样（前 3 条）")
+    print("\n④ 随机抽样（前 3 条）")
     for v in valid[:3]:
         print(f"   [{v.category.value}] {v.name} | ¥{v.price_per_person}/人 | kids:{v.kids_friendly} | {v.tags[:3]}")
 

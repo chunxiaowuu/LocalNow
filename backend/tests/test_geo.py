@@ -1,4 +1,3 @@
-import math
 import pytest
 from models.schemas import ActivityCategory, Coordinates, Venue
 from tools.geo import greedy_cluster, haversine_km

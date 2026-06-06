@@ -4,7 +4,7 @@ amap_http 测试。
 不依赖真实网络：API Key 为空时走 fallback 路径，
 内部函数通过直接调用验证映射逻辑。
 """
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
