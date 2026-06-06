@@ -600,11 +600,13 @@ def generate_plans(state: AgentState) -> dict:
     user_content = f"""{replan_prefix}用户需求：{state["user_message"]}
 
 约束条件：
+- 城市：{constraints.city}
 - 场景：{constraints.scenario.value}
 - 人数：{constraints.group_size} 人
+- 行程天数：{constraints.duration_days} 天
+- 每天活动时长：{constraints.duration_hours} 小时
 - 最远距离：{constraints.max_distance_km} km
 - 人均预算：{constraints.budget_per_person} 元
-- 活动时长：{constraints.duration_hours} 小时
 {venue_section}{cuisine_section}{special_section}{shown_section}
 候选场所（已通过硬约束过滤）：
 {venues}
