@@ -30,6 +30,7 @@ _NODE_MESSAGES: dict[str, str] = {
     "check_availability":"正在确认可用性...",
     "human_review":      "方案已准备好，等待您确认...",
     "increment_replan":  "正在重新规划...",
+    "parse_replan_feedback": "正在根据您的反馈调整方案...",
     "execute_bookings":  "正在完成预订...",
     "send_notification": "正在发送行程通知...",
     "handle_error":      "规划遇到问题，请稍候...",
