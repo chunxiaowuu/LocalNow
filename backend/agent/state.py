@@ -34,6 +34,8 @@ class AgentState(TypedDict):
 
     # 控制流
     replan_count: int
+    replan_feedback: str          # 用户重规划时输入的反馈文字
+    replan_base_plan_id: str      # 用户选择作为调整基础的方案 ID（空串 = 全部重新规划）
     error: str | None
 
     # 最终输出

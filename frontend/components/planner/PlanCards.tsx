@@ -10,7 +10,7 @@ import { Separator } from "@/components/ui/separator";
 interface Props {
   plans: Plan[];
   onConfirm: (planId: string) => void;
-  onReject: () => void;
+  onReject: (feedback: string, basePlanId: string) => void;
 }
 
 const CATEGORY_LABEL: Record<string, string> = {
@@ -25,8 +25,25 @@ const CATEGORY_COLOR: Record<string, string> = {
   transport: "bg-gray-50 text-gray-600",
 };
 
+type RejectMode = "adjust" | "full";
+
 export function PlanCards({ plans, onConfirm, onReject }: Props) {
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected,    setSelected]    = useState<string | null>(null);
+  const [rejecting,   setRejecting]   = useState(false);
+  const [rejectMode,  setRejectMode]  = useState<RejectMode>("full");
+  const [feedback,    setFeedback]    = useState("");
+
+  const selectedPlan = plans.find(p => p.id === selected);
+
+  const openReject = (mode: RejectMode) => {
+    setRejectMode(mode);
+    setRejecting(true);
+  };
+
+  const submitReject = () => {
+    const basePlanId = rejectMode === "adjust" ? (selected ?? "") : "";
+    onReject(feedback, basePlanId);
+  };
 
   return (
     <div className="w-full max-w-4xl mx-auto">
@@ -105,22 +122,72 @@ export function PlanCards({ plans, onConfirm, onReject }: Props) {
         ))}
       </div>
 
-      <div className="flex gap-3 justify-center">
-        <Button
-          variant="outline"
-          onClick={onReject}
-          className="px-6"
-        >
-          重新规划
-        </Button>
-        <Button
-          disabled={!selected}
-          onClick={() => selected && onConfirm(selected)}
-          className="px-8"
-        >
-          确认此方案，开始预订
-        </Button>
-      </div>
+      {rejecting ? (
+        <div className="space-y-3">
+          {/* 模式切换：仅在选了方案时显示 */}
+          {selected && (
+            <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm">
+              <button
+                onClick={() => setRejectMode("adjust")}
+                className={`flex-1 px-3 py-2 transition-colors truncate ${
+                  rejectMode === "adjust" ? "bg-gray-900 text-white" : "text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                基于「{selectedPlan?.title}」调整
+              </button>
+              <button
+                onClick={() => setRejectMode("full")}
+                className={`flex-1 px-3 py-2 transition-colors border-l border-gray-200 ${
+                  rejectMode === "full" ? "bg-gray-900 text-white" : "text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                全部重新规划
+              </button>
+            </div>
+          )}
+
+          <textarea
+            value={feedback}
+            onChange={e => setFeedback(e.target.value)}
+            placeholder={
+              rejectMode === "adjust"
+                ? "哪里需要调整？比如：时间太早了、想换个餐厅..."
+                : "描述你想要的方案，比如：先吃午饭，下午玩，傍晚吃晚饭..."
+            }
+            rows={2}
+            autoFocus
+            className="w-full resize-none rounded-xl border border-gray-200 px-4 py-3 text-sm
+                       placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900"
+          />
+          <div className="flex gap-3 justify-center">
+            <Button variant="ghost" onClick={() => { setRejecting(false); setFeedback(""); }}>
+              取消
+            </Button>
+            <Button variant="outline" onClick={submitReject}>
+              提交反馈，重新规划
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex gap-3 justify-center">
+          {selected ? (
+            <Button variant="outline" onClick={() => openReject("adjust")} className="px-6">
+              在此基础上调整
+            </Button>
+          ) : (
+            <Button variant="outline" onClick={() => openReject("full")} className="px-6">
+              重新规划
+            </Button>
+          )}
+          <Button
+            disabled={!selected}
+            onClick={() => selected && onConfirm(selected)}
+            className="px-8"
+          >
+            确认此方案，开始预订
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

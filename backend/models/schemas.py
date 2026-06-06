@@ -251,3 +251,4 @@ class SessionResponse(BaseModel):
 class ConfirmRequest(BaseModel):
     confirmed: bool
     selected_plan_id: str
+    feedback: str = ""
