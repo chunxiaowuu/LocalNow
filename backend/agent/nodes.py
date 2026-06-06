@@ -34,14 +34,13 @@ from models.schemas import (
     BookingResult,
     BookingStatus,
     ConstraintSet,
-    Coordinates,
     FreeTextConstraints,
     Plan,
     RestaurantConstraints,
     Scenario,
     ToolErrorCode,
 )
-from tools.amap_http import fetch_restaurants, fetch_venues
+from tools.amap_http import fetch_restaurants, fetch_venues, geocode_city
 from tools.geo import greedy_cluster, haversine_km
 from tools.notification import send_trip_summary
 from tools.travel import RESTAURANT_DURATION, neighborhood_radius_km
@@ -57,14 +56,6 @@ _PREFERENCE_TO_CATEGORIES: dict[ActivityPreference, list[ActivityCategory]] = {
     ActivityPreference.food:     [],
 }
 
-_CITY_CENTERS: dict[str, Coordinates] = {
-    "上海": Coordinates(lat=31.2304, lng=121.4737),
-    "北京": Coordinates(lat=39.9042, lng=116.4074),
-    "深圳": Coordinates(lat=22.5431, lng=114.0579),
-    "广州": Coordinates(lat=23.1291, lng=113.2644),
-    "杭州": Coordinates(lat=30.2741, lng=120.1551),
-}
-_DEFAULT_CENTER = Coordinates(lat=31.2304, lng=121.4737)
 
 _CAT_TO_PREF: dict[str, str] = {
     "museum": "museum", "exhibition": "museum",
@@ -379,7 +370,8 @@ async def search_candidates(state: AgentState) -> dict:
     # Step 1：硬过滤谓词（距城市中心距离 + 场所游玩时长）。
     # 时长上限取「整段出行时长」而非扣除餐饮/交通后的活动预算——后者过严，
     # 3 小时出行会把 90 分钟的博物馆全部滤掉。精细的时间编排交给 planner。
-    city_center = _CITY_CENTERS.get(constraints.city, _DEFAULT_CENTER)
+    # city_center 用 geocode_city 动态解析（main 合入），避免非上海城市恒返回上海。
+    city_center = geocode_city(constraints.city)
     full_outing_minutes = int(constraints.duration_hours * 60)
 
     def _set_dist(item) -> float:
