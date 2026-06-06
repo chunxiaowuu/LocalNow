@@ -101,7 +101,7 @@ export function PlanCards({ plans, onConfirm, onReject }: Props) {
                       {CATEGORY_LABEL[item.category]}
                     </span>
                     <div className="min-w-0">
-                      {item.map_uri ? (
+                      {item.map_uri.startsWith("http") ? (
                         <a
                           href={item.map_uri}
                           target="_blank"
@@ -122,7 +122,7 @@ export function PlanCards({ plans, onConfirm, onReject }: Props) {
                       {item.notes && (
                         <p className="text-xs text-gray-400 truncate">{item.notes}</p>
                       )}
-                      {item.booking_uri && (
+                      {item.booking_uri.startsWith("http") && (
                         <a
                           href={item.booking_uri}
                           target="_blank"

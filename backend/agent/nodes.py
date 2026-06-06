@@ -708,9 +708,13 @@ def generate_plans(state: AgentState) -> dict:
         for item in p.timeline:
             c = coord_lookup.get(item.name)
             item.map_uri = amap_marker_uri(item.name, c["lng"], c["lat"]) if c else ""
-            # 需预订的项目（餐厅默认需订座；活动按 LLM 的 booking_required）→ 高德搜索页
+            # 需预订的项目（餐厅默认需订座；活动按 LLM 的 booking_required）→ 高德搜索页。
+            # else 分支必须清空：否则会保留 LLM 在该字段乱填的占位（如 "N/A"），
+            # 前端渲染成相对链接导致 404。
             if item.category == "restaurant" or item.booking_required:
                 item.booking_uri = amap_search_uri(item.name, constraints.city)
+            else:
+                item.booking_uri = ""
 
     return {"candidate_plans": plans}
 
