@@ -336,30 +336,37 @@ def parse_replan_feedback(state: AgentState) -> dict:
 # 节点 2：候选场所搜索
 # ---------------------------------------------------------------------------
 
-async def _laddered_fetch(fetch_fn, ladder: list[str], requested: str) -> tuple[list, dict]:
+async def _laddered_fetch(fetch_fn, ladder: list[str], requested: str, keep) -> tuple[list, dict]:
     """
-    通用冷启动检索：沿 ladder（具体→宽泛）逐级调 fetch_fn，命中即停。
+    通用冷启动检索：沿 ladder（具体→宽泛）逐级调 fetch_fn，**过滤后**仍有候选才算命中。
 
     冷启动问题：用户提具体诉求（"爆啦兔头面" / "莫奈特展"），本地无完全匹配。
     解法：LLM 在 parse_intent 阶段把诉求扩成「具体→宽泛」的检索词阶梯，这里逐级
-    向高德发起召回，第一个有结果的词即采用，从而降级到相近的热门候选。
+    向高德发起召回，从而降级到相近的热门候选。
 
-    fetch_fn：已用 functools.partial 绑定好 city / 过滤参数的检索函数，
+    关键：命中判定基于 keep() 过滤后的存活数量，而非原始召回数量。
+    否则一个窄词（如"莫奈特展"只召回 1 个馆）可能被距离/时长硬过滤清空，
+    却因"有原始结果"提前终止阶梯，导致候选池为空且无法继续降级。
+
+    fetch_fn：functools.partial 绑定好 city / 过滤参数的检索函数，
       需接受 keywords= 和 allow_mock_fallback= 两个关键字参数。
-    返回 (results, match)。match = {requested, matched_term, exact}；
-      requested 为空（用户没提具体诉求）时返回空 dict，行为与旧逻辑一致。
+    keep：callable(item)->bool，对每个候选做硬过滤（距离/时长等），可带副作用（写 distance_km）。
+    返回 (survivors, match)。match = {requested, matched_term, exact}；
+      requested 为空（用户没提具体诉求）时返回空 dict。
     """
-    # 沿阶梯逐级尝试，命中即停（抑制 mock 兜底，便于继续降级）
+    # 沿阶梯逐级尝试，过滤后有存活即停（抑制 mock 兜底，便于继续降级）
     for tier, term in enumerate(ladder):
-        res = await asyncio.to_thread(fetch_fn, keywords=term, allow_mock_fallback=False)
-        if res:
+        raw = await asyncio.to_thread(fetch_fn, keywords=term, allow_mock_fallback=False)
+        survivors = [x for x in raw if keep(x)]
+        if survivors:
             match = {"requested": requested, "matched_term": term, "exact": tier == 0} if requested else {}
-            return res, match
+            return survivors, match
 
     # 阶梯未命中（或无具体诉求）→ 默认搜索，允许 mock 兜底
-    res = await asyncio.to_thread(fetch_fn)
+    raw = await asyncio.to_thread(fetch_fn)
+    survivors = [x for x in raw if keep(x)]
     match = {"requested": requested, "matched_term": None, "exact": False} if requested else {}
-    return res, match
+    return survivors, match
 
 
 async def search_candidates(state: AgentState) -> dict:
@@ -369,14 +376,30 @@ async def search_candidates(state: AgentState) -> dict:
     """
     constraints = state["constraints"]
 
-    # Step 1：每日可用活动时间（总时长 - 餐饮 - 交通预留）
-    available_activity_minutes = max(
-        30,
-        int(constraints.duration_hours * 60) - RESTAURANT_DURATION - 60,
-    )
+    # Step 1：硬过滤谓词（距城市中心距离 + 场所游玩时长）。
+    # 时长上限取「整段出行时长」而非扣除餐饮/交通后的活动预算——后者过严，
+    # 3 小时出行会把 90 分钟的博物馆全部滤掉。精细的时间编排交给 planner。
+    city_center = _CITY_CENTERS.get(constraints.city, _DEFAULT_CENTER)
+    full_outing_minutes = int(constraints.duration_hours * 60)
 
-    # Step 2：并行召回，场所与餐厅都走冷启动阶梯检索。
-    # partial 绑定 city / 过滤参数，_laddered_fetch 只负责在阶梯上注入 keywords。
+    def keep_venue(v) -> bool:
+        dist = haversine_km(v.coordinates, city_center)
+        if dist > constraints.max_distance_km:
+            return False
+        if v.typical_visit_minutes > full_outing_minutes:
+            return False
+        v.distance_km = round(dist, 2)
+        return True
+
+    def keep_restaurant(r) -> bool:
+        dist = haversine_km(r.coordinates, city_center)
+        if dist > constraints.max_distance_km:
+            return False
+        r.distance_km = round(dist, 2)
+        return True
+
+    # Step 2：并行召回，场所与餐厅都走冷启动阶梯检索（过滤内置于阶梯，过滤后无存活则继续降级）。
+    # partial 绑定 city / 过滤参数，_laddered_fetch 负责注入 keywords 并应用 keep。
     venue_fetch = partial(
         fetch_venues,
         constraints.city,
@@ -396,31 +419,10 @@ async def search_candidates(state: AgentState) -> dict:
         max_price=constraints.budget_per_person,
         n=20,
     )
-    (venues_raw, venue_match), (restaurants_raw, cuisine_match) = await asyncio.gather(
-        _laddered_fetch(venue_fetch, constraints.venue_keywords or [], constraints.venue_request.strip()),
-        _laddered_fetch(restaurant_fetch, constraints.cuisine_keywords or [], constraints.cuisine_request.strip()),
+    (venues, venue_match), (restaurants, cuisine_match) = await asyncio.gather(
+        _laddered_fetch(venue_fetch, constraints.venue_keywords or [], constraints.venue_request.strip(), keep_venue),
+        _laddered_fetch(restaurant_fetch, constraints.cuisine_keywords or [], constraints.cuisine_request.strip(), keep_restaurant),
     )
-
-    # Step 3：硬过滤（距城市中心距离 + 时长预算）
-    city_center = _CITY_CENTERS.get(constraints.city, _DEFAULT_CENTER)
-
-    venues: list = []
-    for v in venues_raw:
-        dist = haversine_km(v.coordinates, city_center)
-        if dist > constraints.max_distance_km:
-            continue
-        if v.typical_visit_minutes > available_activity_minutes:
-            continue
-        v.distance_km = round(dist, 2)
-        venues.append(v)
-
-    restaurants: list = []
-    for r in restaurants_raw:
-        dist = haversine_km(r.coordinates, city_center)
-        if dist > constraints.max_distance_km:
-            continue
-        r.distance_km = round(dist, 2)
-        restaurants.append(r)
 
     # Step 4：程序打分排序
     preference_weights = state.get("preference_weights") or {}
@@ -443,7 +445,10 @@ async def search_candidates(state: AgentState) -> dict:
         "candidate_venues":      [v.model_dump() for v in venues],
         "candidate_restaurants": [r.model_dump() for r in restaurants],
         "day_clusters":          [[v.model_dump() for v in c] for c in day_clusters],
-        "available_activity_minutes_per_day": available_activity_minutes,
+        # 供 planner 参考的每日活动净时长（扣除一顿餐 + 交通预留）
+        "available_activity_minutes_per_day": max(
+            30, full_outing_minutes - RESTAURANT_DURATION - 60
+        ),
         "cuisine_match":         cuisine_match,
         "venue_match":           venue_match,
     }
