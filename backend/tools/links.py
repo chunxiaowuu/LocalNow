@@ -20,3 +20,13 @@ def amap_marker_uri(name: str, lng: float, lat: float) -> str:
         f"&name={quote(name)}"
         "&src=localnow&coordinate=gaode&callnative=1"
     )
+
+
+def amap_search_uri(keyword: str, city: str = "") -> str:
+    """
+    高德搜索链接：按场所名搜索，POI 页内含订座/团购/购票入口，作为「去预订」目标。
+    """
+    uri = f"https://uri.amap.com/search?keyword={quote(keyword)}"
+    if city:
+        uri += f"&city={quote(city)}"
+    return uri + "&src=localnow&coordinate=gaode&callnative=1"

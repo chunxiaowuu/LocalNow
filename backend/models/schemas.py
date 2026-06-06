@@ -184,6 +184,7 @@ class TimelineItem(BaseModel):
     estimated_cost: int = 0                  # 人均，元
     notes: str = ""
     map_uri: str = ""                        # 高德地图跳转链接，由后端按候选池真实坐标回填（LLM 勿填）
+    booking_uri: str = ""                     # 「去预订」高德搜索链接，由后端回填（LLM 勿填）
 
 
 class Plan(BaseModel):

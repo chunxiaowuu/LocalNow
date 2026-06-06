@@ -112,6 +112,21 @@ export function PlanCards({ plans, onConfirm, onReject }: Props) {
                       {item.notes && (
                         <p className="text-xs text-gray-400 truncate">{item.notes}</p>
                       )}
+                      {item.booking_uri && (
+                        <a
+                          href={item.booking_uri}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-xs text-orange-600 hover:text-orange-700 hover:underline inline-flex items-center gap-0.5 mt-0.5"
+                          title="在高德搜索中预订"
+                        >
+                          去预订
+                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                          </svg>
+                        </a>
+                      )}
                     </div>
                   </div>
                 ))}

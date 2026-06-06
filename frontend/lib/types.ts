@@ -25,6 +25,7 @@ export interface TimelineItem {
   estimated_cost: number;
   notes: string;
   map_uri: string;            // 高德地图跳转链接，空串表示无
+  booking_uri: string;        // 「去预订」高德搜索链接，空串表示无需预订
 }
 
 export interface Plan {
