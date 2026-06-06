@@ -123,6 +123,14 @@ export async function copyText(text: string): Promise<boolean> {
   }
 }
 
+/** 通过邮箱分享：用 mailto 打开默认邮件客户端，预填标题和行程正文 */
+export function shareViaEmail(plan: Plan): void {
+  const subject = `行程分享：${plan.title}`;
+  const body = buildItineraryText(plan);
+  window.location.href =
+    `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
 /** 打开打印窗口（用户可另存为 PDF / 打印），失败回退为下载 .html */
 export function exportItinerary(plan: Plan): void {
   const html = buildItineraryHtml(plan);

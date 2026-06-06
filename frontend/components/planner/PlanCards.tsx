@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Plan } from "@/lib/types";
-import { buildItineraryText, copyText, exportItinerary } from "@/lib/share";
+import { buildItineraryText, copyText, exportItinerary, shareViaEmail } from "@/lib/share";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -162,18 +162,42 @@ export function PlanCards({ plans, onConfirm, onReject }: Props) {
 
               {/* 分享 / 导出 */}
               <Separator />
-              <div className="flex gap-4">
+              <div className="flex gap-3 text-gray-400">
+                {/* 复制行程 */}
                 <button
                   onClick={(e) => { e.stopPropagation(); handleCopy(plan); }}
-                  className="text-xs text-gray-500 hover:text-gray-900 inline-flex items-center gap-1"
+                  className="p-1.5 rounded-md hover:bg-gray-100 hover:text-gray-900 transition-colors"
+                  title={copiedId === plan.id ? "已复制" : "复制行程"}
                 >
-                  {copiedId === plan.id ? "已复制 ✓" : "复制行程"}
+                  {copiedId === plan.id ? (
+                    <svg className="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                  )}
                 </button>
+                {/* 邮箱分享 */}
+                <button
+                  onClick={(e) => { e.stopPropagation(); shareViaEmail(plan); }}
+                  className="p-1.5 rounded-md hover:bg-gray-100 hover:text-gray-900 transition-colors"
+                  title="邮箱分享"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                </button>
+                {/* 导出 PDF */}
                 <button
                   onClick={(e) => { e.stopPropagation(); exportItinerary(plan); }}
-                  className="text-xs text-gray-500 hover:text-gray-900 inline-flex items-center gap-1"
+                  className="p-1.5 rounded-md hover:bg-gray-100 hover:text-gray-900 transition-colors"
+                  title="导出 PDF"
                 >
-                  导出 PDF
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
                 </button>
               </div>
             </CardContent>
