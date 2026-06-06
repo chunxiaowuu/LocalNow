@@ -16,6 +16,7 @@ export interface PlanRequest {
 }
 
 export interface TimelineItem {
+  day: number;
   name: string;
   address: string;
   start_time: string;

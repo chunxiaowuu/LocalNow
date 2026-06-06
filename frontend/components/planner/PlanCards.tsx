@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Plan } from "@/lib/types";
+import { buildItineraryText, copyText, exportItinerary } from "@/lib/share";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -32,8 +33,17 @@ export function PlanCards({ plans, onConfirm, onReject }: Props) {
   const [rejecting,   setRejecting]   = useState(false);
   const [rejectMode,  setRejectMode]  = useState<RejectMode>("full");
   const [feedback,    setFeedback]    = useState("");
+  const [copiedId,    setCopiedId]    = useState<string | null>(null);
 
   const selectedPlan = plans.find(p => p.id === selected);
+
+  const handleCopy = async (plan: Plan) => {
+    const ok = await copyText(buildItineraryText(plan));
+    if (ok) {
+      setCopiedId(plan.id);
+      setTimeout(() => setCopiedId(null), 2000);
+    }
+  };
 
   const openReject = (mode: RejectMode) => {
     setRejectMode(mode);
@@ -148,6 +158,23 @@ export function PlanCards({ plans, onConfirm, onReject }: Props) {
                       </Badge>
                     ))}
                 </div>
+              </div>
+
+              {/* 分享 / 导出 */}
+              <Separator />
+              <div className="flex gap-4">
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleCopy(plan); }}
+                  className="text-xs text-gray-500 hover:text-gray-900 inline-flex items-center gap-1"
+                >
+                  {copiedId === plan.id ? "已复制 ✓" : "复制行程"}
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); exportItinerary(plan); }}
+                  className="text-xs text-gray-500 hover:text-gray-900 inline-flex items-center gap-1"
+                >
+                  导出 PDF
+                </button>
               </div>
             </CardContent>
           </Card>
