@@ -23,6 +23,8 @@ class Config(BaseSettings):
     max_replan_count: int = 2
     availability_timeout_s: float = 5.0
     max_candidate_plans: int = 2
+    max_timeline_retries: int = 2          # 方案时间校验失败后的最大重试次数
+    timeline_tolerance_min: int = 15       # 每天总时长校验的容差（分钟）
 
 
 config = Config()
