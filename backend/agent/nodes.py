@@ -382,20 +382,25 @@ async def search_candidates(state: AgentState) -> dict:
     city_center = _CITY_CENTERS.get(constraints.city, _DEFAULT_CENTER)
     full_outing_minutes = int(constraints.duration_hours * 60)
 
+    def _set_dist(item) -> float:
+        d = haversine_km(item.coordinates, city_center)
+        item.distance_km = round(d, 2)
+        return d
+
     def keep_venue(v) -> bool:
-        dist = haversine_km(v.coordinates, city_center)
-        if dist > constraints.max_distance_km:
-            return False
-        if v.typical_visit_minutes > full_outing_minutes:
-            return False
-        v.distance_km = round(dist, 2)
-        return True
+        return _set_dist(v) <= constraints.max_distance_km and v.typical_visit_minutes <= full_outing_minutes
 
     def keep_restaurant(r) -> bool:
-        dist = haversine_km(r.coordinates, city_center)
-        if dist > constraints.max_distance_km:
-            return False
-        r.distance_km = round(dist, 2)
+        return _set_dist(r) <= constraints.max_distance_km
+
+    # 放宽版：去掉距离约束（仍保留时长），仅作安全网用——
+    # 宁可给一个略超距离的真实场所，也不能让候选池为空导致 LLM 编造通用占位。
+    def keep_venue_relaxed(v) -> bool:
+        _set_dist(v)
+        return v.typical_visit_minutes <= full_outing_minutes
+
+    def keep_restaurant_relaxed(r) -> bool:
+        _set_dist(r)
         return True
 
     # Step 2：并行召回，场所与餐厅都走冷启动阶梯检索（过滤内置于阶梯，过滤后无存活则继续降级）。
@@ -423,6 +428,17 @@ async def search_candidates(state: AgentState) -> dict:
         _laddered_fetch(venue_fetch, constraints.venue_keywords or [], constraints.venue_request.strip(), keep_venue),
         _laddered_fetch(restaurant_fetch, constraints.cuisine_keywords or [], constraints.cuisine_request.strip(), keep_restaurant),
     )
+
+    # 安全网：阶梯 + mock 兜底后仍为空（通常因距离过滤过严）→ 放宽距离再召回一次，
+    # 保证 planner 永远拿到真实候选，杜绝"无候选→LLM 编造通用占位场所"。
+    if not venues:
+        raw = await asyncio.to_thread(venue_fetch)
+        venues = [v for v in raw if keep_venue_relaxed(v)]
+        venue_match = {**venue_match, "distance_relaxed": True} if venue_match else venue_match
+    if not restaurants:
+        raw = await asyncio.to_thread(restaurant_fetch)
+        restaurants = [r for r in raw if keep_restaurant_relaxed(r)]
+        cuisine_match = {**cuisine_match, "distance_relaxed": True} if cuisine_match else cuisine_match
 
     # Step 4：程序打分排序
     preference_weights = state.get("preference_weights") or {}
