@@ -15,6 +15,21 @@ const CATEGORY_LABEL: Record<string, string> = {
   transport: "交通",
 };
 
+export type ItemStatus = { completed: boolean; booked: boolean };
+export type StatusMap = Record<string, ItemStatus>;
+
+/** 行程项稳定 key（用于勾选状态 / 状态导出），同 day+时间+名称唯一 */
+export function itemKey(it: TimelineItem): string {
+  return `${it.day ?? 1}|${it.start_time}|${it.name}`;
+}
+
+function statusTag(it: TimelineItem, status?: StatusMap): string {
+  if (!status) return "";
+  const s = status[itemKey(it)];
+  if (!s) return "";
+  return `[${s.completed ? "✅已完成" : "⬜未完成"} ${s.booked ? "✅已预订" : "⬜未预订"}] `;
+}
+
 /** 按 day 分组，保持时间顺序 */
 export function groupByDay(timeline: TimelineItem[]): [number, TimelineItem[]][] {
   const map = new Map<number, TimelineItem[]>();
@@ -26,8 +41,8 @@ export function groupByDay(timeline: TimelineItem[]): [number, TimelineItem[]][]
   return [...map.entries()].sort((a, b) => a[0] - b[0]);
 }
 
-/** 方式 1：纯文字行程，适合粘贴到微信等 */
-export function buildItineraryText(plan: Plan): string {
+/** 方式 1：纯文字行程，适合粘贴到微信等。传入 status 则带勾选状态。 */
+export function buildItineraryText(plan: Plan, status?: StatusMap): string {
   const lines: string[] = [`📍 ${plan.title}`];
   if (plan.summary) lines.push(plan.summary);
 
@@ -39,7 +54,7 @@ export function buildItineraryText(plan: Plan): string {
     if (multiDay) lines.push(`【第 ${day} 天】`);
     for (const it of items) {
       const icon = CATEGORY_ICON[it.category] ?? "•";
-      lines.push(`${icon} ${it.start_time}–${it.end_time}  ${it.name}`);
+      lines.push(`${icon} ${statusTag(it, status)}${it.start_time}–${it.end_time}  ${it.name}`);
       if (it.map_uri) lines.push(`   📍 ${it.map_uri}`);
       if (it.booking_uri) lines.push(`   🎫 预订：${it.booking_uri}`);
     }
@@ -51,8 +66,8 @@ export function buildItineraryText(plan: Plan): string {
   return lines.join("\n");
 }
 
-/** 导出：自包含、打印友好的 HTML 文档（浏览器可另存为 PDF） */
-export function buildItineraryHtml(plan: Plan): string {
+/** 导出：自包含、打印友好的 HTML 文档（浏览器可另存为 PDF）。传入 status 则带勾选状态。 */
+export function buildItineraryHtml(plan: Plan, status?: StatusMap): string {
   const esc = (s: string) =>
     s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
@@ -72,8 +87,12 @@ export function buildItineraryHtml(plan: Plan): string {
             ? ` <a href="${esc(it.booking_uri)}">去预订</a>`
             : "";
           const notes = it.notes ? `<div class="notes">${esc(it.notes)}</div>` : "";
+          const st = status?.[itemKey(it)];
+          const mark = st
+            ? `<span class="mark">${st.completed ? "✅" : "⬜"}完成 ${st.booked ? "✅" : "⬜"}预订</span> `
+            : "";
           return `<li>
-            <span class="time">${esc(it.start_time)}–${esc(it.end_time)}</span>
+            ${mark}<span class="time">${esc(it.start_time)}–${esc(it.end_time)}</span>
             <span class="tag ${it.category}">${label}</span>
             <span class="name">${esc(it.name)}</span>${map}${book}
             ${notes}
@@ -100,6 +119,7 @@ export function buildItineraryHtml(plan: Plan): string {
   .tag.restaurant{background:#fff7ed;color:#c2410c}
   .tag.transport{background:#f3f4f6;color:#4b5563}
   .name{font-weight:600}
+  .mark{font-size:12px;margin-right:6px;color:#374151}
   a{color:#2563eb;text-decoration:none;font-size:13px;margin-left:6px}
   .notes{color:#9ca3af;font-size:12px;margin-top:2px;margin-left:2px}
   .foot{margin-top:24px;color:#6b7280;font-size:14px}
@@ -124,16 +144,16 @@ export async function copyText(text: string): Promise<boolean> {
 }
 
 /** 通过邮箱分享：用 mailto 打开默认邮件客户端，预填标题和行程正文 */
-export function shareViaEmail(plan: Plan): void {
+export function shareViaEmail(plan: Plan, status?: StatusMap): void {
   const subject = `行程分享：${plan.title}`;
-  const body = buildItineraryText(plan);
+  const body = buildItineraryText(plan, status);
   window.location.href =
     `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
 
 /** 打开打印窗口（用户可另存为 PDF / 打印），失败回退为下载 .html */
-export function exportItinerary(plan: Plan): void {
-  const html = buildItineraryHtml(plan);
+export function exportItinerary(plan: Plan, status?: StatusMap): void {
+  const html = buildItineraryHtml(plan, status);
   const win = window.open("", "_blank");
   if (win) {
     win.document.write(html);
