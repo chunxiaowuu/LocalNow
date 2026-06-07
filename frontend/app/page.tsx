@@ -7,6 +7,7 @@ import { PlannerInput } from "@/components/planner/PlannerInput";
 import { AgentProgress } from "@/components/planner/AgentProgress";
 import { PlanCards } from "@/components/planner/PlanCards";
 import { ExecSummary } from "@/components/planner/ExecSummary";
+import { ItineraryChecklist } from "@/components/planner/ItineraryChecklist";
 
 export default function Home() {
   const [phase, setPhase] = useState<Phase>({ kind: "input" });
@@ -47,6 +48,7 @@ export default function Home() {
         kind: "done",
         summary: data.summary,
         bookingResults: data.booking_results ?? [],
+        plan: data.plan ?? null,
       });
     });
 
@@ -120,11 +122,20 @@ export default function Home() {
         )}
 
         {phase.kind === "done" && (
-          <ExecSummary
-            summary={phase.summary}
-            bookingResults={phase.bookingResults}
-            onReset={() => setPhase({ kind: "input" })}
-          />
+          phase.plan ? (
+            <ItineraryChecklist
+              summary={phase.summary}
+              plan={phase.plan}
+              bookingResults={phase.bookingResults}
+              onReset={() => setPhase({ kind: "input" })}
+            />
+          ) : (
+            <ExecSummary
+              summary={phase.summary}
+              bookingResults={phase.bookingResults}
+              onReset={() => setPhase({ kind: "input" })}
+            />
+          )
         )}
 
         {phase.kind === "error" && (

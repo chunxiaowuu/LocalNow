@@ -197,6 +197,7 @@ async def stream_session(session_id: str):
                     status="done",
                     result={"summary": values.get("summary_message", ""), "values": values},
                 )
+                selected = values.get("selected_plan")
                 yield {
                     "event": "done",
                     "data": json.dumps(
@@ -206,6 +207,8 @@ async def stream_session(session_id: str):
                                 r.model_dump()
                                 for r in values.get("booking_results", [])
                             ],
+                            # 确认后的方案（含 timeline + 地图/预订链接），供前端生成行程清单
+                            "plan": selected.model_dump() if selected else None,
                             "error": values.get("error"),
                         },
                         ensure_ascii=False,
