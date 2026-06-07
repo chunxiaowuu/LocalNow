@@ -25,9 +25,10 @@ from tools.travel import VISIT_DURATION
 
 logger = logging.getLogger(__name__)
 
-_AMAP_SEARCH_URL  = "https://restapi.amap.com/v3/place/text"
+_AMAP_AROUND_URL  = "https://restapi.amap.com/v3/place/around"
 _AMAP_GEOCODE_URL = "https://restapi.amap.com/v3/geocode/geo"
 _DATA_DIR = Path(__file__).parent.parent / "data"
+_SEARCH_RADIUS_M = 50000   # 周边搜索半径（米，高德上限），由上层 haversine 再按 max_distance_km 收窄
 
 # 常用城市坐标缓存，避免重复调 Geocoding API
 _CITY_CENTER_CACHE: dict[str, Coordinates] = {
@@ -114,11 +115,20 @@ def geocode_city(city: str) -> Coordinates:
 
 
 def _search_pois(keywords: str, city: str, types: str = "", offset: int = 20) -> list[dict]:
-    """调用高德 /v3/place/text，返回原始 POI 列表。失败返回空列表。"""
+    """
+    按「地名 → 坐标 → 周边搜索」返回原始 POI 列表。
+
+    为什么不用文本搜索的 city 参数：高德 /v3/place/text 的 city 只认行政市
+    （市名/citycode/adcode）。冷门地名（如"海陵岛"这类景区/海岛）不被识别时，
+    city 会被静默忽略并返回默认（北京）结果。改用 geocode 得到坐标后做 /v3/place/around
+    周边搜索，可覆盖全国任意可地理编码的城市/区县/景区/海岛。
+    """
+    center = geocode_city(city)
     params = {
         "key":      config.amap_api_key,
         "keywords": keywords,
-        "city":     city,
+        "location": f"{center.lng},{center.lat}",
+        "radius":   _SEARCH_RADIUS_M,
         "offset":   offset,
         "output":   "JSON",
         "extensions": "all",
@@ -126,7 +136,7 @@ def _search_pois(keywords: str, city: str, types: str = "", offset: int = 20) ->
     if types:
         params["types"] = types
 
-    resp = httpx.get(_AMAP_SEARCH_URL, params=params, timeout=8.0)
+    resp = httpx.get(_AMAP_AROUND_URL, params=params, timeout=8.0)
     resp.raise_for_status()
     data = resp.json()
     if data.get("status") != "1":
