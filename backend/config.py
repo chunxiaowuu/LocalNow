@@ -13,6 +13,7 @@ class Config(BaseSettings):
     anthropic_api_key: str = ""
     openai_api_key: str = ""
     google_api_key: str = ""
+    longcat_api_key: str = ""
     langsmith_api_key: str = ""
     langsmith_project: str = "localnow"
 
