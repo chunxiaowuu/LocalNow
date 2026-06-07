@@ -21,6 +21,7 @@ _MODEL_MAP: dict[str, tuple[str, str]] = {
     "deepseek":  ("deepseek-chat",       "deepseek-chat"),
     "ollama":    ("qwen3:8b",            "qwen3:8b"),
     "gemini":    ("gemini-2.5-flash",    "gemini-2.5-flash"),
+    "longcat":   ("LongCat-2.0-Preview", "LongCat-2.0-Preview"),
 }
 
 
@@ -75,6 +76,16 @@ def get_llm(role: str = "main") -> BaseChatModel:
             model=model_name,
             base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
             api_key=config.google_api_key,
+            temperature=0,
+        )
+
+    if provider == "longcat":
+        # 美团 LongCat，OpenAI 兼容端点（https://longcat.chat/platform）
+        from langchain_openai import ChatOpenAI
+        return ChatOpenAI(
+            model=model_name,
+            base_url="https://api.longcat.chat/openai/v1",
+            api_key=config.longcat_api_key,
             temperature=0,
         )
 
