@@ -17,7 +17,9 @@ from langgraph.types import Command
 from sse_starlette.sse import EventSourceResponse
 
 from agent.graph import graph
-from api import session_store
+from api import ratelimit, session_store
+from api.auth import identity
+from config import config
 from models.schemas import ConfirmRequest, PlanRequest, SessionResponse, UserRequest
 
 router = APIRouter()
@@ -62,6 +64,24 @@ def _initial_state(user_message: str, user_request: dict | None = None) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# GET /quota — 当日剩余规划次数（前端展示用）
+# ---------------------------------------------------------------------------
+
+@router.get("/quota")
+async def quota(raw: FastAPIRequest):
+    ident, is_auth = identity(raw)
+    limit = config.auth_plans_per_day if is_auth else config.anon_plans_per_day
+    used = ratelimit.plans_used_today(ident)
+    return {
+        "authenticated": is_auth,
+        "plans_used": used,
+        "plans_limit": limit,
+        "plans_remaining": max(0, limit - used),
+        "calls_per_plan": config.auth_calls_per_plan if is_auth else config.anon_calls_per_plan,
+    }
+
+
+# ---------------------------------------------------------------------------
 # POST /session
 # ---------------------------------------------------------------------------
 
@@ -72,6 +92,18 @@ async def create_session(raw: FastAPIRequest):
     - PlanRequest（新 UI）：结构化字段，parse_intent 走直接映射路径
     - UserRequest（旧格式）：{message: str}，parse_intent 走全量 LLM 路径
     """
+    # 限流：未登录每天 1 个 plan，登录每天 3 个 plan（按身份计数）
+    ident, is_auth = identity(raw)
+    plan_limit = config.auth_plans_per_day if is_auth else config.anon_plans_per_day
+    if not ratelimit.try_consume_plan(ident, plan_limit):
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                f"今日规划次数已用完（{'登录' if is_auth else '未登录'}用户每天 {plan_limit} 次）。"
+                + ("" if is_auth else "登录后每天可规划 3 次。")
+            ),
+        )
+
     data = await raw.json()
     session_id = str(uuid.uuid4())
 
@@ -93,6 +125,7 @@ async def create_session(raw: FastAPIRequest):
             user_message += body.free_text
         session_store.create(session_id, user_message, user_request=body.model_dump(mode="json"))
 
+    session_store.update(session_id, is_authenticated=is_auth)
     return SessionResponse(session_id=session_id, status="created")
 
 
@@ -243,6 +276,22 @@ async def confirm_session(session_id: str, body: ConfirmRequest):
         raise HTTPException(status_code=404, detail="Session not found")
     if session.status != "interrupted":
         raise HTTPException(status_code=400, detail="Session is not waiting for confirmation")
+
+    # 限流：拒绝（=带反馈重规划/修改 plan）按 session 计数；未登录≤3 次、登录≤9 次
+    if not body.confirmed:
+        call_limit = (
+            config.auth_calls_per_plan if session.is_authenticated else config.anon_calls_per_plan
+        )
+        if session.modify_count >= call_limit:
+            raise HTTPException(
+                status_code=429,
+                detail=(
+                    f"该方案的修改次数已用完（{'登录' if session.is_authenticated else '未登录'}"
+                    f"用户每个方案最多 {call_limit} 次）。"
+                    + ("" if session.is_authenticated else "登录后每个方案可修改 9 次。")
+                ),
+            )
+        session_store.update(session_id, modify_count=session.modify_count + 1)
 
     session_store.update(
         session_id,

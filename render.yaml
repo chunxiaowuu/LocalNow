@@ -1,0 +1,34 @@
+# Render 蓝图：后端 FastAPI（Docker）。
+# 在 Render 控制台 New + → Blueprint，选本仓库即可创建；密钥（sync:false）在控制台填。
+services:
+  - type: web
+    name: localnow-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      # 仅用美团 LongCat（按要求不配置其他 LLM key）
+      - key: LLM_PROVIDER
+        value: longcat
+      - key: LONGCAT_API_KEY
+        sync: false
+      - key: AMAP_API_KEY
+        sync: false
+      # 登录 cookie/token 签名密钥（自动生成）
+      - key: SESSION_SECRET
+        generateValue: true
+      # GitHub OAuth App（在 GitHub 创建后填）
+      - key: GITHUB_CLIENT_ID
+        sync: false
+      - key: GITHUB_CLIENT_SECRET
+        sync: false
+      # 前端地址（GitHub Pages）；CORS 与登录回跳用
+      - key: ALLOWED_ORIGINS
+        sync: false       # 例：https://<user>.github.io
+      - key: FRONTEND_BASE
+        sync: false       # 例：https://<user>.github.io/LocalNow
+      # 后端自身公网地址（OAuth 回调用）
+      - key: OAUTH_REDIRECT_BASE
+        sync: false       # 例：https://localnow-backend.onrender.com

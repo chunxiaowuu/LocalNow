@@ -3,7 +3,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from api.oauth import router as auth_router
 from api.routes import router
+from config import config
 
 app = FastAPI(
     title="LocalNow API",
@@ -11,15 +13,19 @@ app = FastAPI(
     version="0.1.0",
 )
 
-# 开发阶段允许所有来源，生产环境替换为具体域名
+# CORS：本地默认放开（"*"），生产用 ALLOWED_ORIGINS 锁定前端域名。
+# 注意：带 cookie 的跨域请求要求 allow_credentials=True 且来源不能是 "*"。
+_origins = config.allowed_origins_list
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_origins,
+    allow_credentials=_origins != ["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 app.include_router(router)
+app.include_router(auth_router)
 
 
 @app.get("/health")

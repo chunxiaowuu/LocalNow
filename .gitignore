@@ -24,3 +24,6 @@ chroma_data/
 
 # 系统
 .DS_Store
+
+# rate-limit local store
+backend/ratelimit.db

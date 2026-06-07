@@ -17,6 +17,8 @@ class Session:
     status: str = "created"          # created | running | interrupted | resuming | done | error
     resume_payload: dict = field(default_factory=dict)   # /confirm 收到的用户选择
     result: dict = field(default_factory=dict)           # 最终状态快照
+    is_authenticated: bool = False                       # 创建会话时是否登录（决定修改次数上限）
+    modify_count: int = 0                                # 已用的「修改 plan」次数（限流）
 
 
 # 模块级单例，进程内共享
