@@ -80,7 +80,7 @@ class TestCostAndDays:
             _item("B", "12:00", "13:00", category="restaurant", cost=200),
         ])
         errs = validate_timeline(plan, _constraints(budget_per_person=300))
-        assert any("超过预算" in e for e in errs)
+        assert any("预算" in e for e in errs)
 
     def test_missing_day_in_multiday(self):
         # 行程 2 天，但只安排了 day 1

@@ -517,9 +517,13 @@ def validate_timeline(plan: Plan, constraints: ConstraintSet) -> list[str]:
             if span > full_day_minutes + tol:
                 errors.append(f"第{day}天总时长 {span} 分钟超过每天上限 {full_day_minutes} 分钟")
 
-    total_cost = sum(it.estimated_cost for it in plan.timeline)
-    if total_cost > constraints.budget_per_person:
-        errors.append(f"人均费用 {total_cost} 元超过预算 {constraints.budget_per_person} 元")
+        # 费用按「每天」核对：budget_per_person 是每人每天预算，与 duration_hours 同口径。
+        # 若按整段行程求和对比单日预算，多天行程必然超标 → 校验永远失败 → 白白耗尽重试。
+        day_cost = sum(it.estimated_cost for it in items)
+        if day_cost > constraints.budget_per_person:
+            errors.append(
+                f"第{day}天人均费用 {day_cost} 元超过每天预算 {constraints.budget_per_person} 元"
+            )
 
     missing = set(range(1, constraints.duration_days + 1)) - set(by_day)
     if missing:
@@ -710,7 +714,7 @@ def generate_plans(state: AgentState) -> dict:
 - 行程天数：{constraints.duration_days} 天
 - 每天活动时长：{constraints.duration_hours} 小时
 - 最远距离：{constraints.max_distance_km} km
-- 人均预算：{constraints.budget_per_person} 元
+- 每天人均预算：{constraints.budget_per_person} 元（按天计）
 {venue_section}{cuisine_section}{special_section}{shown_section}
 候选场所（已通过硬约束过滤）：
 {venues}

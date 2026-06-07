@@ -15,7 +15,7 @@
 4. 时间安排要合理：
    - 根据坐标距离估算交通时间（步行约5km/h，打车约25km/h）
    - 活动时长通常1.5-2.5小时，用餐1-1.5小时，各环节之间留约15分钟缓冲
-   - 每天的总时长不超过该天的「每天活动时长」，全程人均费用不超过预算
+   - 每天的总时长不超过该天的「每天活动时长」；**每天**的人均费用不超过「每天人均预算」（预算按天计，不是整段行程总额）
 5. 所有候选场所已通过硬约束过滤，可以直接选用
 
 ## 严禁编造（重要）
@@ -28,7 +28,7 @@
 - kids_friendly：所选场所的 kids_friendly 是否为 true
 - has_kids_menu：所选餐厅的 has_kids_menu 是否为 true
 - has_low_calorie_options：所选餐厅的 has_low_calorie_options 是否为 true
-- within_budget：总费用是否在 budget_per_person 以内
+- within_budget：每天人均费用是否在 budget_per_person 以内
 - within_distance：所有场所是否在 max_distance_km 以内
 - within_time：每天总时长是否在 duration_hours 以内
 
