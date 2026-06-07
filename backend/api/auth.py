@@ -51,9 +51,23 @@ def _verify(token: str) -> dict | None:
 
 
 def current_user(request: Request) -> dict | None:
-    """返回登录用户 {'id','login'}，未登录返回 None。"""
+    """
+    返回登录用户 {'id','login'}，未登录返回 None。
+    优先读 Authorization: Bearer（跨站部署用，避免第三方 cookie 被拦截），
+    回退到 cookie（同源部署用）。
+    """
+    auth = request.headers.get("authorization", "")
+    if auth.lower().startswith("bearer "):
+        user = _verify(auth[7:].strip())
+        if user:
+            return user
     token = request.cookies.get(_COOKIE_NAME)
     return _verify(token) if token else None
+
+
+def make_token(user: dict) -> str:
+    """签发会话 token（与 cookie 同格式；前端存 localStorage 走 Bearer）。"""
+    return make_session_cookie(user)
 
 
 def client_ip(request: Request) -> str:
