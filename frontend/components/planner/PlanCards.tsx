@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Plan } from "@/lib/types";
-import { buildItineraryText, copyText, exportItinerary } from "@/lib/share";
+import { buildItineraryText, copyText, exportItinerary, shareViaEmail, groupByDay } from "@/lib/share";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -90,56 +90,72 @@ export function PlanCards({ plans, onConfirm, onReject }: Props) {
             <CardContent className="space-y-3">
               <Separator />
 
-              {/* Timeline */}
+              {/* Timeline（按天分组；多天行程显示「第 N 天」分隔） */}
               <div className="space-y-2">
-                {plan.timeline.map((item, i) => (
-                  <div key={i} className="flex items-start gap-3">
-                    <span className="text-xs text-gray-400 w-10 flex-shrink-0 pt-0.5">
-                      {item.start_time}
-                    </span>
-                    <span className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 ${CATEGORY_COLOR[item.category]}`}>
-                      {CATEGORY_LABEL[item.category]}
-                    </span>
-                    <div className="min-w-0">
-                      {item.map_uri ? (
-                        <a
-                          href={item.map_uri}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="text-sm font-medium text-gray-800 hover:text-blue-600 hover:underline inline-flex items-center gap-1 max-w-full"
-                          title="在高德地图中查看"
-                        >
-                          <span className="truncate">{item.name}</span>
-                          <svg className="w-3 h-3 flex-shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                          </svg>
-                        </a>
-                      ) : (
-                        <p className="text-sm font-medium text-gray-800 truncate">{item.name}</p>
+                {(() => {
+                  const days = groupByDay(plan.timeline);
+                  const isMulti = days.length > 1;
+                  return days.map(([day, items]) => (
+                    <div key={day} className="space-y-2">
+                      {isMulti && (
+                        <div className="flex items-center gap-2 pt-2">
+                          <span className="text-xs font-semibold text-gray-600 bg-gray-100 rounded px-2 py-0.5 flex-shrink-0">
+                            第 {day} 天
+                          </span>
+                          <div className="flex-1 h-px bg-gray-200" />
+                        </div>
                       )}
-                      {item.notes && (
-                        <p className="text-xs text-gray-400 truncate">{item.notes}</p>
-                      )}
-                      {item.booking_uri && (
-                        <a
-                          href={item.booking_uri}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="text-xs text-orange-600 hover:text-orange-700 hover:underline inline-flex items-center gap-0.5 mt-0.5"
-                          title="在高德搜索中预订"
-                        >
-                          去预订
-                          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                          </svg>
-                        </a>
-                      )}
+                      {items.map((item, i) => (
+                        <div key={i} className="flex items-start gap-3">
+                          <span className="text-xs text-gray-400 w-10 flex-shrink-0 pt-0.5">
+                            {item.start_time}
+                          </span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full flex-shrink-0 ${CATEGORY_COLOR[item.category]}`}>
+                            {CATEGORY_LABEL[item.category]}
+                          </span>
+                          <div className="min-w-0">
+                            {item.map_uri.startsWith("http") ? (
+                              <a
+                                href={item.map_uri}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-sm font-medium text-gray-800 hover:text-blue-600 hover:underline inline-flex items-center gap-1 max-w-full"
+                                title="在高德地图中查看"
+                              >
+                                <span className="truncate">{item.name}</span>
+                                <svg className="w-3 h-3 flex-shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                              </a>
+                            ) : (
+                              <p className="text-sm font-medium text-gray-800 truncate">{item.name}</p>
+                            )}
+                            {item.notes && (
+                              <p className="text-xs text-gray-400 truncate">{item.notes}</p>
+                            )}
+                            {item.booking_uri.startsWith("http") && (
+                              <a
+                                href={item.booking_uri}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-xs text-orange-600 hover:text-orange-700 hover:underline inline-flex items-center gap-0.5 mt-0.5"
+                                title="在高德搜索中预订"
+                              >
+                                去预订
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                                </svg>
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  </div>
-                ))}
+                  ));
+                })()}
               </div>
 
               <Separator />
@@ -162,18 +178,42 @@ export function PlanCards({ plans, onConfirm, onReject }: Props) {
 
               {/* 分享 / 导出 */}
               <Separator />
-              <div className="flex gap-4">
+              <div className="flex gap-3 text-gray-400">
+                {/* 复制行程 */}
                 <button
                   onClick={(e) => { e.stopPropagation(); handleCopy(plan); }}
-                  className="text-xs text-gray-500 hover:text-gray-900 inline-flex items-center gap-1"
+                  className="p-1.5 rounded-md hover:bg-gray-100 hover:text-gray-900 transition-colors"
+                  title={copiedId === plan.id ? "已复制" : "复制行程"}
                 >
-                  {copiedId === plan.id ? "已复制 ✓" : "复制行程"}
+                  {copiedId === plan.id ? (
+                    <svg className="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                  )}
                 </button>
+                {/* 邮箱分享 */}
+                <button
+                  onClick={(e) => { e.stopPropagation(); shareViaEmail(plan); }}
+                  className="p-1.5 rounded-md hover:bg-gray-100 hover:text-gray-900 transition-colors"
+                  title="邮箱分享"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                </button>
+                {/* 导出 PDF */}
                 <button
                   onClick={(e) => { e.stopPropagation(); exportItinerary(plan); }}
-                  className="text-xs text-gray-500 hover:text-gray-900 inline-flex items-center gap-1"
+                  className="p-1.5 rounded-md hover:bg-gray-100 hover:text-gray-900 transition-colors"
+                  title="导出 PDF"
                 >
-                  导出 PDF
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
                 </button>
               </div>
             </CardContent>

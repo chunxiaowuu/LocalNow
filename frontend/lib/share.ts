@@ -16,7 +16,7 @@ const CATEGORY_LABEL: Record<string, string> = {
 };
 
 /** 按 day 分组，保持时间顺序 */
-function groupByDay(timeline: TimelineItem[]): [number, TimelineItem[]][] {
+export function groupByDay(timeline: TimelineItem[]): [number, TimelineItem[]][] {
   const map = new Map<number, TimelineItem[]>();
   for (const it of timeline) {
     const d = it.day ?? 1;
@@ -121,6 +121,14 @@ export async function copyText(text: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/** 通过邮箱分享：用 mailto 打开默认邮件客户端，预填标题和行程正文 */
+export function shareViaEmail(plan: Plan): void {
+  const subject = `行程分享：${plan.title}`;
+  const body = buildItineraryText(plan);
+  window.location.href =
+    `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
 
 /** 打开打印窗口（用户可另存为 PDF / 打印），失败回退为下载 .html */
