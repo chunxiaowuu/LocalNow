@@ -16,6 +16,7 @@ LangGraph 节点函数。
 
 import asyncio
 import itertools
+import logging
 import re
 import uuid
 from functools import partial
@@ -46,6 +47,8 @@ from tools.geo import greedy_cluster, haversine_km
 from tools.links import amap_marker_uri, amap_search_uri
 from tools.notification import send_trip_summary
 from tools.travel import RESTAURANT_DURATION, neighborhood_radius_km
+
+logger = logging.getLogger(__name__)
 
 _PROMPTS_DIR = Path(__file__).parent.parent / "prompts"
 
@@ -725,27 +728,37 @@ def generate_plans(state: AgentState) -> dict:
 请生成 {config.max_candidate_plans} 个风格不同的活动方案。
 """
 
-    # 生成 → 校验 → 失败回灌错误重试（最多 max_timeline_retries 次）。
-    # 校验是程序硬核对，比 LLM 自填的 constraint_coverage 可靠。
+    # 生成 → 校验 → 失败回灌错误重试。
+    # 区分「硬」校验（时间/费用/天数，必须满足，始终重试）和「软」校验（不重复/多样/
+    # 方案数，最多重试 1 次）——软约束即使没满足，最终也会接受当前结果，多花一次昂贵的
+    # LLM 调用收益很低，故设上限以控制延迟。
+    # 候选池规模决定是否启用软约束：池子太小时强制只会逼 LLM 编造场所或留白。
+    venue_pool = len({v["name"] for v in venues})
+    rest_pool = len({r["name"] for r in restaurants})
+    enforce_diversity = (venue_pool + rest_pool) >= config.max_candidate_plans + 3
+
     fix_feedback = ""
     plans: list[Plan] = []
+    soft_retries_used = 0
     for attempt in range(config.max_timeline_retries + 1):
-        response: _PlansResponse = llm.invoke([
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=user_content + fix_feedback),
-        ])
+        try:
+            response: _PlansResponse = llm.invoke([
+                SystemMessage(content=system_prompt),
+                HumanMessage(content=user_content + fix_feedback),
+            ])
+        except Exception as e:
+            # 模型瞬时错误（如返回空响应/超时）→ 还有预算就重试，否则向上抛出
+            if attempt < config.max_timeline_retries:
+                logger.warning("generate_plans LLM 调用失败，重试: %s", e)
+                continue
+            raise
         plans = response.plans
 
-        # 候选池规模决定是否启用"软"约束（不重复 / 多样 / 方案数）：
-        # 池子太小时强制这些只会逼 LLM 编造场所或留白，故按池子大小放行。
-        venue_pool = len({v["name"] for v in venues})
-        rest_pool = len({r["name"] for r in restaurants})
-        enforce_diversity = (venue_pool + rest_pool) >= config.max_candidate_plans + 3
-
-        all_errors: list[str] = []
+        hard: list[str] = []
+        soft: list[str] = []
         for p in plans:
-            all_errors += [f"方案「{p.title}」：{e}" for e in validate_timeline(p, constraints)]
-            all_errors += [
+            hard += [f"方案「{p.title}」：{e}" for e in validate_timeline(p, constraints)]
+            soft += [
                 f"方案「{p.title}」：{e}"
                 for e in validate_no_cross_day_repeat(
                     p, venue_pool=venue_pool, rest_pool=rest_pool,
@@ -753,20 +766,28 @@ def generate_plans(state: AgentState) -> dict:
                 )
             ]
         if enforce_diversity:
-            all_errors += validate_plan_diversity(plans)
+            soft += validate_plan_diversity(plans)
             if len(plans) < config.max_candidate_plans:
-                all_errors.append(
+                soft.append(
                     f"只生成了 {len(plans)} 个方案，请生成 {config.max_candidate_plans} 个场所明显不同的方案"
                 )
 
-        if not all_errors:
+        if not hard and not soft:
             break
-        # 还有重试机会才回灌；否则保留本轮结果（有方案胜过无方案）
-        if attempt < config.max_timeline_retries:
-            fix_feedback = (
-                "\n\n⚠️ 上一轮方案存在以下问题（时间/费用/重复/雷同），请逐条修正后重新输出全部方案：\n"
-                + "\n".join(f"- {e}" for e in all_errors) + "\n"
-            )
+        if attempt >= config.max_timeline_retries:
+            break  # 预算用尽，保留本轮结果（有方案胜过无方案）
+        # 硬错误必重试（连带软错误一起修）；纯软错误最多重试 1 次
+        if hard:
+            to_fix = hard + soft
+        elif soft_retries_used >= 1:
+            break
+        else:
+            soft_retries_used += 1
+            to_fix = soft
+        fix_feedback = (
+            "\n\n⚠️ 上一轮方案存在以下问题（时间/费用/重复/雷同），请逐条修正后重新输出全部方案：\n"
+            + "\n".join(f"- {e}" for e in to_fix) + "\n"
+        )
 
     # 用候选池真实坐标回填 map_uri（程序权威设置，忽略 LLM 可能填的值，避免编造链接）
     coord_lookup: dict[str, dict] = {}
