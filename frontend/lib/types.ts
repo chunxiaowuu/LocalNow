@@ -53,7 +53,7 @@ export interface BookingResult {
 export type SseEvent =
   | { type: "node_update"; node: string; message: string }
   | { type: "interrupt"; plans: Plan[] }
-  | { type: "done"; summary: string; booking_results: BookingResult[]; error?: string }
+  | { type: "done"; summary: string; booking_results: BookingResult[]; plan: Plan | null; error?: string }
   | { type: "error"; message: string };
 
 // 应用阶段状态机
@@ -62,7 +62,7 @@ export type Phase =
   | { kind: "running"; events: ProgressEvent[] }
   | { kind: "interrupted"; events: ProgressEvent[]; plans: Plan[]; sessionId: string }
   | { kind: "executing"; events: ProgressEvent[] }
-  | { kind: "done"; summary: string; bookingResults: BookingResult[] }
+  | { kind: "done"; summary: string; bookingResults: BookingResult[]; plan: Plan | null }
   | { kind: "error"; message: string };
 
 export interface ProgressEvent {
