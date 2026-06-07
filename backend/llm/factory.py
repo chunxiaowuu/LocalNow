@@ -41,12 +41,16 @@ def get_llm(role: str = "main") -> BaseChatModel:
     main_model, fast_model = _MODEL_MAP[provider]
     model_name = main_model if role == "main" else fast_model
 
+    # 每次请求超时 + 客户端重试上限，避免单次调用在服务端卡死/限流退避导致整体长时间挂起
+    common = {"timeout": config.llm_timeout_s, "max_retries": config.llm_max_retries}
+
     if provider == "anthropic":
         from langchain_anthropic import ChatAnthropic
         return ChatAnthropic(
             model=model_name,
             api_key=config.anthropic_api_key,
             temperature=0,
+            **common,
         )
 
     if provider == "openai":
@@ -55,6 +59,7 @@ def get_llm(role: str = "main") -> BaseChatModel:
             model=model_name,
             api_key=config.openai_api_key,
             temperature=0,
+            **common,
         )
 
     if provider == "deepseek":
@@ -64,6 +69,7 @@ def get_llm(role: str = "main") -> BaseChatModel:
             base_url="https://api.deepseek.com/v1",
             api_key=config.openai_api_key,
             temperature=0,
+            **common,
         )
 
     if provider == "ollama":
@@ -77,6 +83,7 @@ def get_llm(role: str = "main") -> BaseChatModel:
             base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
             api_key=config.google_api_key,
             temperature=0,
+            **common,
         )
 
     if provider == "longcat":
@@ -87,6 +94,7 @@ def get_llm(role: str = "main") -> BaseChatModel:
             base_url="https://api.longcat.chat/openai/v1",
             api_key=config.longcat_api_key,
             temperature=0,
+            **common,
         )
 
     raise ValueError(f"provider {provider} 未实现")
