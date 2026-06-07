@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Phase, PlanRequest, ProgressEvent } from "@/lib/types";
-import { createSession, openStream, confirmPlan } from "@/lib/api";
+import { createSession, openStream, confirmPlan, fetchQuota, Quota } from "@/lib/api";
+import { captureTokenFromHash, fetchMe, githubLoginEnabled, loginWithGitHub, clearToken } from "@/lib/auth";
 import { PlannerInput } from "@/components/planner/PlannerInput";
 import { AgentProgress } from "@/components/planner/AgentProgress";
 import { PlanCards } from "@/components/planner/PlanCards";
@@ -11,12 +12,27 @@ import { ItineraryChecklist } from "@/components/planner/ItineraryChecklist";
 
 export default function Home() {
   const [phase, setPhase] = useState<Phase>({ kind: "input" });
+  const [user, setUser] = useState<{ id: string; login: string } | null>(null);
+  const [loginEnabled, setLoginEnabled] = useState(false);
+  const [quota, setQuota] = useState<Quota | null>(null);
+
+  const refreshQuota = useCallback(async () => setQuota(await fetchQuota()), []);
+
+  // 挂载：捕获 OAuth 回调 token、读登录态/额度（异步加载，非同步 setState）
+  useEffect(() => {
+    captureTokenFromHash();
+    /* eslint-disable react-hooks/set-state-in-effect */
+    fetchMe().then(setUser);
+    githubLoginEnabled().then(setLoginEnabled);
+    refreshQuota();
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [refreshQuota]);
+
+  const logout = () => { clearToken(); setUser(null); refreshQuota(); };
 
   // 启动 SSE 流，处理所有事件类型
   const startStream = useCallback((sessionId: string, existingEvents: ProgressEvent[] = []) => {
     const es = openStream(sessionId);
-
-    // heartbeat 事件仅用于保持 SSE 连接，前端直接忽略
     es.addEventListener("heartbeat", () => {});
 
     es.addEventListener("node_update", (e) => {
@@ -58,18 +74,17 @@ export default function Home() {
     });
   }, []);
 
-  // 用户提交输入，创建会话并开始流
   const handleSubmit = useCallback(async (req: PlanRequest) => {
     try {
       setPhase({ kind: "running", events: [] });
       const sessionId = await createSession(req);
+      refreshQuota();
       startStream(sessionId);
-    } catch {
-      setPhase({ kind: "error", message: "创建会话失败，请检查后端是否启动" });
+    } catch (e) {
+      setPhase({ kind: "error", message: e instanceof Error ? e.message : "创建会话失败，请检查后端是否启动" });
     }
-  }, [startStream]);
+  }, [startStream, refreshQuota]);
 
-  // 用户确认方案
   const handleConfirm = useCallback(async (planId: string) => {
     if (phase.kind !== "interrupted") return;
     const { sessionId, events } = phase;
@@ -77,12 +92,11 @@ export default function Home() {
       setPhase({ kind: "executing", events: [...events, { node: "execute", message: "正在执行预订...", done: false }] });
       await confirmPlan(sessionId, true, planId);
       startStream(sessionId, events);
-    } catch {
-      setPhase({ kind: "error", message: "确认失败，请重试" });
+    } catch (e) {
+      setPhase({ kind: "error", message: e instanceof Error ? e.message : "确认失败，请重试" });
     }
   }, [phase, startStream]);
 
-  // 用户拒绝，重新规划
   const handleReject = useCallback(async (feedback: string, basePlanId: string) => {
     if (phase.kind !== "interrupted") return;
     const { sessionId, events } = phase;
@@ -90,36 +104,45 @@ export default function Home() {
       setPhase({ kind: "running", events });
       await confirmPlan(sessionId, false, basePlanId, feedback);
       startStream(sessionId, events);
-    } catch {
-      setPhase({ kind: "error", message: "操作失败，请重试" });
+    } catch (e) {
+      setPhase({ kind: "error", message: e instanceof Error ? e.message : "操作失败，请重试" });
     }
   }, [phase, startStream]);
 
   return (
     <main className="min-h-screen bg-gray-50">
-      <div className="max-w-5xl mx-auto px-4 py-16">
-        {phase.kind === "input" && (
-          <PlannerInput onSubmit={handleSubmit} loading={false} />
+      {/* 顶栏：额度 + 登录态 */}
+      <div className="max-w-5xl mx-auto px-4 pt-4 flex justify-end items-center gap-3 text-sm">
+        {quota && (
+          <span className="text-gray-500">
+            今日剩余规划 {quota.plans_remaining}/{quota.plans_limit}
+          </span>
         )}
+        {user ? (
+          <span className="text-gray-700">
+            @{user.login}
+            <button onClick={logout} className="text-gray-400 hover:text-gray-700 underline ml-2">退出</button>
+          </span>
+        ) : loginEnabled ? (
+          <button onClick={loginWithGitHub} className="text-gray-700 hover:text-gray-900 underline">
+            GitHub 登录（解锁每天 3 次规划）
+          </button>
+        ) : null}
+      </div>
 
-        {phase.kind === "running" && (
-          <AgentProgress events={phase.events} />
-        )}
+      <div className="max-w-5xl mx-auto px-4 py-12">
+        {phase.kind === "input" && <PlannerInput onSubmit={handleSubmit} loading={false} />}
+
+        {phase.kind === "running" && <AgentProgress events={phase.events} />}
 
         {phase.kind === "interrupted" && (
           <div className="space-y-6">
             <AgentProgress events={phase.events} />
-            <PlanCards
-              plans={phase.plans}
-              onConfirm={handleConfirm}
-              onReject={handleReject}
-            />
+            <PlanCards plans={phase.plans} onConfirm={handleConfirm} onReject={handleReject} />
           </div>
         )}
 
-        {phase.kind === "executing" && (
-          <AgentProgress events={phase.events} />
-        )}
+        {phase.kind === "executing" && <AgentProgress events={phase.events} />}
 
         {phase.kind === "done" && (
           phase.plan ? (
@@ -140,11 +163,8 @@ export default function Home() {
 
         {phase.kind === "error" && (
           <div className="text-center space-y-4">
-            <p className="text-red-600">{phase.message}</p>
-            <button
-              onClick={() => setPhase({ kind: "input" })}
-              className="text-sm text-gray-500 underline"
-            >
+            <p className="text-red-600 whitespace-pre-wrap">{phase.message}</p>
+            <button onClick={() => setPhase({ kind: "input" })} className="text-sm text-gray-500 underline">
               返回重试
             </button>
           </div>

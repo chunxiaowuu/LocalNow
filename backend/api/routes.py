@@ -64,6 +64,24 @@ def _initial_state(user_message: str, user_request: dict | None = None) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# GET /quota — 当日剩余规划次数（前端展示用）
+# ---------------------------------------------------------------------------
+
+@router.get("/quota")
+async def quota(raw: FastAPIRequest):
+    ident, is_auth = identity(raw)
+    limit = config.auth_plans_per_day if is_auth else config.anon_plans_per_day
+    used = ratelimit.plans_used_today(ident)
+    return {
+        "authenticated": is_auth,
+        "plans_used": used,
+        "plans_limit": limit,
+        "plans_remaining": max(0, limit - used),
+        "calls_per_plan": config.auth_calls_per_plan if is_auth else config.anon_calls_per_plan,
+    }
+
+
+# ---------------------------------------------------------------------------
 # POST /session
 # ---------------------------------------------------------------------------
 
