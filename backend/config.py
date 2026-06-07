@@ -27,5 +27,10 @@ class Config(BaseSettings):
     max_timeline_retries: int = 2          # 方案时间校验失败后的最大重试次数
     timeline_tolerance_min: int = 15       # 每天总时长校验的容差（分钟）
 
+    # LLM 单次请求超时（秒）与客户端重试次数：
+    # 防止某次调用在服务端卡死/限流退避导致整体卡十几分钟（实测见过 930s 的离群值）。
+    llm_timeout_s: float = 240.0
+    llm_max_retries: int = 2
+
 
 config = Config()
