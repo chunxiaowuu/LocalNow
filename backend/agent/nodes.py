@@ -473,10 +473,6 @@ async def search_candidates(state: AgentState) -> dict:
 # 节点 3：方案生成
 # ---------------------------------------------------------------------------
 
-class _PlansResponse(BaseModel):
-    """Instructor/with_structured_output 要求顶层是对象，用 wrapper 包住 list[Plan]。"""
-    plans: list[Plan]
-
 
 def validate_timeline(plan: Plan, constraints: ConstraintSet) -> list[str]:
     """
@@ -582,13 +578,17 @@ def validate_plan_diversity(plans: list[Plan]) -> list[str]:
     return errors
 
 
-def generate_plans(state: AgentState) -> dict:
+_PLAN_STYLES = ["偏文艺 / 人文深度", "偏轻松 / 休闲社交", "偏自然 / 户外", "偏亲子 / 互动体验"]
+
+
+async def generate_plans(state: AgentState) -> dict:
     """
-    使用 main LLM 生成 max_candidate_plans 个风格不同的方案骨架。
-    with_structured_output(_PlansResponse) 自动验证 schema，失败时抛 ValidationError。
-    行程时间由 LLM 根据坐标距离自行估算（合并进 prompt，无需独立工具）。
+    并发生成 max_candidate_plans 个方案：每个方案一次独立的「单方案」LLM 调用
+    （输出更小、更快，且可并发），不同风格促进差异；生成后按候选池真实坐标回填链接。
+
+    相比"一次调用生成全部方案"，并发单方案显著降低多日行程的墙钟耗时，
+    且单个方案失败/不达标只需重生成它自己，不必整体重来。
     """
-    llm = get_llm("main").with_structured_output(_PlansResponse)
     system_prompt = _load_system_prompt("planner")
     constraints = state["constraints"]
 
@@ -708,7 +708,7 @@ def generate_plans(state: AgentState) -> dict:
             + "（请尽量在方案安排或 notes 中体现）\n"
         )
 
-    user_content = f"""{replan_prefix}用户需求：{state["user_message"]}
+    base_content = f"""{replan_prefix}用户需求：{state["user_message"]}
 
 约束条件：
 - 城市：{constraints.city}
@@ -724,70 +724,81 @@ def generate_plans(state: AgentState) -> dict:
 
 候选餐厅（已通过硬约束过滤，**餐厅时间必须从「可预约时段」中选择**）：
 {restaurants_text}
-
-请生成 {config.max_candidate_plans} 个风格不同的活动方案。
 """
 
-    # 生成 → 校验 → 失败回灌错误重试。
-    # 区分「硬」校验（时间/费用/天数，必须满足，始终重试）和「软」校验（不重复/多样/
-    # 方案数，最多重试 1 次）——软约束即使没满足，最终也会接受当前结果，多花一次昂贵的
-    # LLM 调用收益很低，故设上限以控制延迟。
-    # 候选池规模决定是否启用软约束：池子太小时强制只会逼 LLM 编造场所或留白。
+    # 候选池规模决定是否启用软约束（多样性）：池子太小时强制只会逼 LLM 编造或留白。
     venue_pool = len({v["name"] for v in venues})
     rest_pool = len({r["name"] for r in restaurants})
     enforce_diversity = (venue_pool + rest_pool) >= config.max_candidate_plans + 3
 
-    fix_feedback = ""
-    plans: list[Plan] = []
-    soft_retries_used = 0
-    for attempt in range(config.max_timeline_retries + 1):
-        try:
-            response: _PlansResponse = llm.invoke([
-                SystemMessage(content=system_prompt),
-                HumanMessage(content=user_content + fix_feedback),
-            ])
-        except Exception as e:
-            # 模型瞬时错误（如返回空响应/超时）→ 还有预算就重试，否则向上抛出
-            if attempt < config.max_timeline_retries:
-                logger.warning("generate_plans LLM 调用失败，重试: %s", e)
-                continue
-            raise
-        plans = response.plans
+    llm_single = get_llm("main").with_structured_output(Plan)
+    styles = _PLAN_STYLES[:config.max_candidate_plans] or [""]
 
-        hard: list[str] = []
-        soft: list[str] = []
-        for p in plans:
-            hard += [f"方案「{p.title}」：{e}" for e in validate_timeline(p, constraints)]
-            soft += [
-                f"方案「{p.title}」：{e}"
-                for e in validate_no_cross_day_repeat(
-                    p, venue_pool=venue_pool, rest_pool=rest_pool,
-                    duration_days=constraints.duration_days,
-                )
-            ]
-        if enforce_diversity:
-            soft += validate_plan_diversity(plans)
-            if len(plans) < config.max_candidate_plans:
-                soft.append(
-                    f"只生成了 {len(plans)} 个方案，请生成 {config.max_candidate_plans} 个场所明显不同的方案"
-                )
+    def _gen_one(style: str, avoid_names: tuple[str, ...]) -> Plan:
+        """生成单个方案（含自身的硬/软校验重试 + 瞬时错误重试）。同步，供 to_thread 并发调用。"""
+        instr = "\n请只生成 **1 个** 完整方案"
+        if style:
+            instr += f"，整体风格：{style}"
+        instr += "。\n"
+        if avoid_names:
+            instr += "请尽量避免使用以下场所（留给其他方案以保证差异）：" + "、".join(avoid_names) + "。\n"
 
-        if not hard and not soft:
-            break
-        if attempt >= config.max_timeline_retries:
-            break  # 预算用尽，保留本轮结果（有方案胜过无方案）
-        # 硬错误必重试（连带软错误一起修）；纯软错误最多重试 1 次
-        if hard:
-            to_fix = hard + soft
-        elif soft_retries_used >= 1:
-            break
-        else:
-            soft_retries_used += 1
-            to_fix = soft
-        fix_feedback = (
-            "\n\n⚠️ 上一轮方案存在以下问题（时间/费用/重复/雷同），请逐条修正后重新输出全部方案：\n"
-            + "\n".join(f"- {e}" for e in to_fix) + "\n"
-        )
+        feedback = ""
+        plan: Plan | None = None
+        soft_used = 0
+        for attempt in range(config.max_timeline_retries + 1):
+            try:
+                plan = llm_single.invoke([
+                    SystemMessage(content=system_prompt),
+                    HumanMessage(content=base_content + instr + feedback),
+                ])
+            except Exception as e:
+                if attempt < config.max_timeline_retries:
+                    logger.warning("生成单个方案失败，重试: %s", e)
+                    continue
+                raise
+            hard = validate_timeline(plan, constraints)
+            soft = validate_no_cross_day_repeat(
+                plan, venue_pool=venue_pool, rest_pool=rest_pool,
+                duration_days=constraints.duration_days,
+            )
+            if not hard and not soft:
+                break
+            if attempt >= config.max_timeline_retries:
+                break
+            if hard:
+                to_fix = hard + soft
+            elif soft_used >= 1:
+                break
+            else:
+                soft_used += 1
+                to_fix = soft
+            feedback = (
+                "\n\n⚠️ 上一轮方案存在以下问题，请逐条修正后重新输出：\n"
+                + "\n".join(f"- {e}" for e in to_fix) + "\n"
+            )
+        return plan
+
+    # 并发生成 N 个方案（每个不同风格）
+    plans: list[Plan] = list(await asyncio.gather(
+        *(asyncio.to_thread(_gen_one, s, ()) for s in styles)
+    ))
+
+    # 跨方案多样性：池子足够却仍雷同 → 依次重生成靠后的方案，避开已采纳方案的场所（每个最多一次）
+    if enforce_diversity and len(plans) > 1:
+        def _places(p: Plan) -> set[str]:
+            return {it.name for it in p.timeline if it.category in ("activity", "restaurant")}
+        accepted = [plans[0]]
+        for i in range(1, len(plans)):
+            if validate_plan_diversity([plans[i], *accepted]):
+                avoid = set().union(*(_places(p) for p in accepted))
+                try:
+                    plans[i] = await asyncio.to_thread(
+                        _gen_one, styles[i] if i < len(styles) else "", tuple(sorted(avoid))
+                    )
+                except Exception as e:
+                    logger.warning("多样性重生成失败，保留原方案: %s", e)
+            accepted.append(plans[i])
 
     # 用候选池真实坐标回填 map_uri（程序权威设置，忽略 LLM 可能填的值，避免编造链接）
     coord_lookup: dict[str, dict] = {}
