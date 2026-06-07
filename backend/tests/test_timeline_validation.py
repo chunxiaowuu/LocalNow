@@ -1,5 +1,5 @@
-"""validate_timeline 单元测试：纯函数，不调 LLM。"""
-from agent.nodes import validate_timeline
+"""validate_timeline / validate_plan_diversity 单元测试：纯函数，不调 LLM。"""
+from agent.nodes import validate_no_cross_day_repeat, validate_plan_diversity, validate_timeline
 from models.schemas import ConstraintSet, Plan, Scenario, TimelineItem
 
 
@@ -10,9 +10,9 @@ def _item(name, start, end, *, day=1, category="activity", cost=0):
     )
 
 
-def _plan(items):
+def _plan(items, *, title="测试方案", pid="p1"):
     return Plan(
-        id="p1", title="测试方案", summary="",
+        id=pid, title=title, summary="",
         timeline=items, total_duration_minutes=0, total_cost_estimate=0,
     )
 
@@ -80,7 +80,7 @@ class TestCostAndDays:
             _item("B", "12:00", "13:00", category="restaurant", cost=200),
         ])
         errs = validate_timeline(plan, _constraints(budget_per_person=300))
-        assert any("超过预算" in e for e in errs)
+        assert any("预算" in e for e in errs)
 
     def test_missing_day_in_multiday(self):
         # 行程 2 天，但只安排了 day 1
@@ -94,3 +94,52 @@ class TestCostAndDays:
             _item("B", "10:00", "11:30", day=2, cost=50),
         ])
         assert validate_timeline(plan, _constraints(duration_days=2)) == []
+
+
+class TestCrossDayDuplicate:
+    def test_same_place_on_two_days_flagged_when_pool_sufficient(self):
+        plan = _plan([
+            _item("海洋馆", "10:00", "11:30", day=1),
+            _item("海洋馆", "10:00", "11:30", day=2),
+        ])
+        # 候选池足够（venue_pool=5 ≥ 2 天）→ 跨天重复应报错
+        errs = validate_no_cross_day_repeat(plan, venue_pool=5, rest_pool=5, duration_days=2)
+        assert any("重复出现" in e for e in errs)
+
+    def test_repeat_allowed_when_pool_too_small(self):
+        plan = _plan([
+            _item("海洋馆", "10:00", "11:30", day=1),
+            _item("海洋馆", "10:00", "11:30", day=2),
+        ])
+        # 候选池不足（venue_pool=1 < 2 天）→ 不强制不重复，避免逼 LLM 编造
+        assert validate_no_cross_day_repeat(plan, venue_pool=1, rest_pool=5, duration_days=2) == []
+
+    def test_distinct_places_per_day_ok(self):
+        plan = _plan([
+            _item("海洋馆", "10:00", "11:30", day=1, cost=50),
+            _item("博物馆", "10:00", "11:30", day=2, cost=50),
+        ])
+        assert validate_no_cross_day_repeat(plan, venue_pool=5, rest_pool=5, duration_days=2) == []
+
+
+class TestPlanDiversity:
+    def test_identical_place_sets_flagged(self):
+        a = _plan([_item("博物馆", "10:00", "11:30"), _item("小笼", "12:00", "13:00", category="restaurant")],
+                  title="方案A", pid="a")
+        b = _plan([_item("博物馆", "14:00", "15:30"), _item("小笼", "12:00", "13:00", category="restaurant")],
+                  title="方案B", pid="b")
+        errs = validate_plan_diversity([a, b])
+        assert any("高度雷同" in e for e in errs)
+
+    def test_one_shared_place_allowed(self):
+        # 共用 1 个（小笼），其余不同 → Jaccard = 1/3 ≤ 0.5 → 通过
+        a = _plan([_item("博物馆", "10:00", "11:30"), _item("小笼", "12:00", "13:00", category="restaurant")],
+                  title="方案A", pid="a")
+        b = _plan([_item("公园", "10:00", "11:30"), _item("小笼", "12:00", "13:00", category="restaurant")],
+                  title="方案B", pid="b")
+        assert validate_plan_diversity([a, b]) == []
+
+    def test_completely_different_ok(self):
+        a = _plan([_item("博物馆", "10:00", "11:30")], title="方案A", pid="a")
+        b = _plan([_item("公园", "10:00", "11:30")], title="方案B", pid="b")
+        assert validate_plan_diversity([a, b]) == []

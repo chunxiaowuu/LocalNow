@@ -53,17 +53,19 @@ _DEFAULT_SLOTS = [
     "17:30", "18:00", "18:30", "19:00", "19:30",
 ]
 
-# 偏好标签 → 高德搜索关键词
+# 偏好标签 → 高德搜索关键词。
+# 注意：高德 keywords 用空格分隔是「与」（必须同时包含全部词），用 | 是「或」。
+# 多词必须用 | 连接，否则像"博物馆 公园 景点 展览"会被当成 AND，在很多城市返回 0 条。
 _CATEGORY_KEYWORDS: dict[ActivityCategory, str] = {
-    ActivityCategory.museum:      "博物馆 展览馆",
-    ActivityCategory.exhibition:  "博物馆 展览馆",
+    ActivityCategory.museum:      "博物馆|展览馆",
+    ActivityCategory.exhibition:  "博物馆|展览馆",
     ActivityCategory.park:        "公园",
-    ActivityCategory.aquarium:    "水族馆 动物园",
+    ActivityCategory.aquarium:    "水族馆|动物园",
     ActivityCategory.kids_center: "儿童乐园",
-    ActivityCategory.escape_room: "密室逃脱 剧本杀",
-    ActivityCategory.citywalk:    "公园 景点 历史街区",
+    ActivityCategory.escape_room: "密室逃脱|剧本杀",
+    ActivityCategory.citywalk:    "公园|景点|历史街区",
 }
-_DEFAULT_VENUE_KEYWORDS = "博物馆 公园 景点 展览"
+_DEFAULT_VENUE_KEYWORDS = "博物馆|公园|景点|展览"
 
 # 高德 typecode 前4位 → ActivityCategory
 _TYPECODE_MAP: dict[str, ActivityCategory] = {
@@ -196,14 +198,15 @@ def fetch_venues(
             search_kw = keywords
         else:
             if categories:
-                search_kw = " ".join(
+                # 用 | 连接（OR），避免被高德当成 AND 而返回 0 条
+                search_kw = "|".join(
                     _CATEGORY_KEYWORDS.get(c, "") for c in categories if _CATEGORY_KEYWORDS.get(c)
                 ) or _DEFAULT_VENUE_KEYWORDS
             else:
                 search_kw = _DEFAULT_VENUE_KEYWORDS
 
             if kids_friendly:
-                search_kw += " 亲子"
+                search_kw += "|亲子乐园"
 
         pois = _search_pois(search_kw, city, offset=min(n, 25))
         if not pois:
@@ -277,16 +280,17 @@ def fetch_restaurants(
         return _fallback_restaurants(n) if allow_mock_fallback else []
 
     try:
+        # 多词用 | 连接（OR）；空格会被高德当成 AND，在多数城市返回 0 条
         if keywords is not None:
             search_kw = keywords
         elif has_kids_menu:
-            search_kw = "亲子餐厅 家庭餐厅"
+            search_kw = "亲子餐厅|家庭餐厅"
         elif has_low_calorie:
-            search_kw = "健康轻食 沙拉"
+            search_kw = "健康轻食|沙拉"
         elif noise_levels and NoiseLevel.quiet in noise_levels:
-            search_kw = "安静咖啡厅 茶室"
+            search_kw = "安静咖啡厅|茶室"
         else:
-            search_kw = "餐厅 美食 老字号"
+            search_kw = "餐厅|美食|老字号"
 
         pois = _search_pois(search_kw, city, types="050000", offset=min(n, 25))
         if not pois:

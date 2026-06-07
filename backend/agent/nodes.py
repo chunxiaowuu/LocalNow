@@ -15,6 +15,7 @@ LangGraph 节点函数。
 """
 
 import asyncio
+import itertools
 import re
 import uuid
 from functools import partial
@@ -423,14 +424,15 @@ async def search_candidates(state: AgentState) -> dict:
         _laddered_fetch(restaurant_fetch, constraints.cuisine_keywords or [], constraints.cuisine_request.strip(), keep_restaurant),
     )
 
-    # 安全网：阶梯 + mock 兜底后仍为空（通常因距离过滤过严）→ 放宽距离再召回一次，
-    # 保证 planner 永远拿到真实候选，杜绝"无候选→LLM 编造通用占位场所"。
+    # 安全网：阶梯后仍为空（多因距离过滤过严）→ 放宽距离再召回一次。
+    # 关键：allow_mock_fallback=False，只对「本城真实结果」放宽距离；
+    # 若高德对本城确实没有数据，宁可留空让 planner 如实标注，也不要注入异地（上海）mock 场所。
     if not venues:
-        raw = await asyncio.to_thread(venue_fetch)
+        raw = await asyncio.to_thread(venue_fetch, allow_mock_fallback=False)
         venues = [v for v in raw if keep_venue_relaxed(v)]
         venue_match = {**venue_match, "distance_relaxed": True} if venue_match else venue_match
     if not restaurants:
-        raw = await asyncio.to_thread(restaurant_fetch)
+        raw = await asyncio.to_thread(restaurant_fetch, allow_mock_fallback=False)
         restaurants = [r for r in raw if keep_restaurant_relaxed(r)]
         cuisine_match = {**cuisine_match, "distance_relaxed": True} if cuisine_match else cuisine_match
 
@@ -515,14 +517,65 @@ def validate_timeline(plan: Plan, constraints: ConstraintSet) -> list[str]:
             if span > full_day_minutes + tol:
                 errors.append(f"第{day}天总时长 {span} 分钟超过每天上限 {full_day_minutes} 分钟")
 
-    total_cost = sum(it.estimated_cost for it in plan.timeline)
-    if total_cost > constraints.budget_per_person:
-        errors.append(f"人均费用 {total_cost} 元超过预算 {constraints.budget_per_person} 元")
+        # 费用按「每天」核对：budget_per_person 是每人每天预算，与 duration_hours 同口径。
+        # 若按整段行程求和对比单日预算，多天行程必然超标 → 校验永远失败 → 白白耗尽重试。
+        day_cost = sum(it.estimated_cost for it in items)
+        if day_cost > constraints.budget_per_person:
+            errors.append(
+                f"第{day}天人均费用 {day_cost} 元超过每天预算 {constraints.budget_per_person} 元"
+            )
 
     missing = set(range(1, constraints.duration_days + 1)) - set(by_day)
     if missing:
         errors.append(f"缺少第 {sorted(missing)} 天的安排")
 
+    return errors
+
+
+def validate_no_cross_day_repeat(
+    plan: Plan, *, venue_pool: int, rest_pool: int, duration_days: int
+) -> list[str]:
+    """
+    同一场所/餐厅不应跨天重复（多天行程）。**池子感知**：只有当该类别候选数
+    ≥ 天数时才报错——否则候选不够分配到每一天，强制不重复只会逼 LLM 编造场所。
+    """
+    cat_pool = {"activity": venue_pool, "restaurant": rest_pool}
+    days_of: dict[tuple[str, str], set[int]] = {}
+    for item in plan.timeline:
+        if item.category in cat_pool:
+            days_of.setdefault((item.name, item.category), set()).add(item.day)
+    return [
+        f"「{name}」在第 {sorted(days)} 天重复出现，同一地点不要跨天重复"
+        for (name, cat), days in days_of.items()
+        if len(days) > 1 and cat_pool[cat] >= duration_days
+    ]
+
+
+# 两个方案场所集合的 Jaccard 相似度上限；> 此值视为"过于雷同"。
+# 0.5 允许小方案共用 1 个最契合场所，但拒绝"场所全相同、只换时间"。
+_PLAN_SIMILARITY_MAX = 0.5
+
+
+def validate_plan_diversity(plans: list[Plan]) -> list[str]:
+    """
+    跨方案多样性校验：不同方案的场所集合不应高度雷同。
+    允许最多共用 1 个最契合场所，但若两方案场所几乎相同则报错回灌重试。
+    """
+    def places(p: Plan) -> set[str]:
+        return {it.name for it in p.timeline if it.category in ("activity", "restaurant")}
+
+    errors: list[str] = []
+    sets = [(p, places(p)) for p in plans]
+    for (pa, a), (pb, b) in itertools.combinations(sets, 2):
+        if not a or not b:
+            continue
+        jaccard = len(a & b) / len(a | b)
+        if jaccard > _PLAN_SIMILARITY_MAX:
+            shared = "、".join(sorted(a & b))
+            errors.append(
+                f"方案「{pa.title}」与「{pb.title}」场所高度雷同（共用：{shared}）；"
+                "请让它们选用明显不同的场所，最多共用 1 个最契合的场所"
+            )
     return errors
 
 
@@ -661,7 +714,7 @@ def generate_plans(state: AgentState) -> dict:
 - 行程天数：{constraints.duration_days} 天
 - 每天活动时长：{constraints.duration_hours} 小时
 - 最远距离：{constraints.max_distance_km} km
-- 人均预算：{constraints.budget_per_person} 元
+- 每天人均预算：{constraints.budget_per_person} 元（按天计）
 {venue_section}{cuisine_section}{special_section}{shown_section}
 候选场所（已通过硬约束过滤）：
 {venues}
@@ -683,16 +736,35 @@ def generate_plans(state: AgentState) -> dict:
         ])
         plans = response.plans
 
+        # 候选池规模决定是否启用"软"约束（不重复 / 多样 / 方案数）：
+        # 池子太小时强制这些只会逼 LLM 编造场所或留白，故按池子大小放行。
+        venue_pool = len({v["name"] for v in venues})
+        rest_pool = len({r["name"] for r in restaurants})
+        enforce_diversity = (venue_pool + rest_pool) >= config.max_candidate_plans + 3
+
         all_errors: list[str] = []
         for p in plans:
             all_errors += [f"方案「{p.title}」：{e}" for e in validate_timeline(p, constraints)]
+            all_errors += [
+                f"方案「{p.title}」：{e}"
+                for e in validate_no_cross_day_repeat(
+                    p, venue_pool=venue_pool, rest_pool=rest_pool,
+                    duration_days=constraints.duration_days,
+                )
+            ]
+        if enforce_diversity:
+            all_errors += validate_plan_diversity(plans)
+            if len(plans) < config.max_candidate_plans:
+                all_errors.append(
+                    f"只生成了 {len(plans)} 个方案，请生成 {config.max_candidate_plans} 个场所明显不同的方案"
+                )
 
         if not all_errors:
             break
         # 还有重试机会才回灌；否则保留本轮结果（有方案胜过无方案）
         if attempt < config.max_timeline_retries:
             fix_feedback = (
-                "\n\n⚠️ 上一轮方案存在以下时间/费用问题，请逐条修正后重新输出全部方案：\n"
+                "\n\n⚠️ 上一轮方案存在以下问题（时间/费用/重复/雷同），请逐条修正后重新输出全部方案：\n"
                 + "\n".join(f"- {e}" for e in all_errors) + "\n"
             )
 
@@ -708,9 +780,12 @@ def generate_plans(state: AgentState) -> dict:
         for item in p.timeline:
             c = coord_lookup.get(item.name)
             item.map_uri = amap_marker_uri(item.name, c["lng"], c["lat"]) if c else ""
-            # 需预订的项目（餐厅默认需订座；活动按 LLM 的 booking_required）→ 高德搜索页
+            # 需预订的项目（餐厅默认需订座；活动按 LLM 的 booking_required）→ 高德搜索页。
+            # else 必须清空：否则会保留 LLM 在该字段乱填的占位（如 "N/A"），前端渲染成相对链接 404。
             if item.category == "restaurant" or item.booking_required:
                 item.booking_uri = amap_search_uri(item.name, constraints.city)
+            else:
+                item.booking_uri = ""
 
     return {"candidate_plans": plans}
 
