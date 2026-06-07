@@ -1,8 +1,6 @@
 """Phase 1 数据模型测试。"""
 from datetime import date
 
-import pytest
-from pydantic import ValidationError
 
 from models.schemas import (
     ActivityCategory,
@@ -10,10 +8,7 @@ from models.schemas import (
     ConstraintSet,
     Coordinates,
     FreeTextConstraints,
-    NoiseLevel,
-    Plan,
     PlanRequest,
-    Restaurant,
     Scenario,
     TimelineItem,
     TravelMode,

@@ -61,6 +61,26 @@ npm install
 npm run dev
 ```
 
+## Docker 一键启动
+
+```bash
+cp .env.example .env      # 填入 LLM_PROVIDER / 对应 API Key / AMAP_API_KEY
+docker compose up --build
+```
+
+- 前端：http://localhost:3000
+- 后端：http://localhost:8000
+
+说明：`NEXT_PUBLIC_API_URL` 在前端**构建时**内联，浏览器直连后端，本地保持默认 `http://localhost:8000` 即可；部署到服务器时改成后端公网地址并重新构建前端镜像。
+
+## CI
+
+GitHub Actions（`.github/workflows/ci.yml`）在 push 到 main 和所有 PR 上运行：
+
+- **backend**：`ruff check` + `pytest`
+- **frontend**：`tsc --noEmit` + `eslint` + `next build`
+- **docker**：构建前后端镜像（验证 Dockerfile，不推送）
+
 ## 测试
 
 详见 [backend/tests/README.md](backend/tests/README.md)

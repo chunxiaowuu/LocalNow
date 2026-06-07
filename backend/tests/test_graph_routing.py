@@ -8,7 +8,6 @@ LangGraph 条件边路由单元测试。
 构造最小化的 AgentState dict，验证路由结果是否符合预期。
 """
 
-import pytest
 
 from agent.graph import _route_after_availability, _route_after_human_review
 from models.schemas import (

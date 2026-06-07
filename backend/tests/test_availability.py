@@ -6,7 +6,6 @@ availability 工具单元测试。
   - v001 上海海洋水族馆：opening_hours="09:00-21:00"
 """
 
-import pytest
 
 from models.schemas import ToolErrorCode
 from tools.availability import (
