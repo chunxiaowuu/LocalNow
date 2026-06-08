@@ -1,5 +1,7 @@
 # LocalNow 开发文档
 
+[English](development.md) | **中文**
+
 记录各模块的技术实现、关键决策和注意事项。
 
 ---
@@ -39,7 +41,7 @@ npx create-next-app@latest frontend  # TypeScript + Tailwind + App Router
 npx shadcn@latest init               # 预制 UI 组件库
 ```
 
-shadcn/ui 提供 Card、Dialog、Progress 等现成组件，避免在 hackathon 中花时间写基础样式。
+shadcn/ui 提供 Card、Dialog、Progress 等现成组件，避免花时间写基础样式。
 
 ### 关键配置
 
