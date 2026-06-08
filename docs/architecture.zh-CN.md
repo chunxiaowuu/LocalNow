@@ -345,7 +345,7 @@ GET  /session/{id}/result       获取完整结果和消息文本
 
 | 层级 | 技术 | 职责 |
 |------|------|------|
-| 前端框架 | Next.js 14 (App Router) | 页面路由 |
+| 前端框架 | Next.js (App Router) | 页面路由 |
 | UI 组件 | Tailwind CSS + shadcn/ui | 快速高质量 UI |
 | 实时通信 | SSE (EventSource) | Agent 进度推送 |
 | 后端框架 | FastAPI + uvicorn | 异步 API |
@@ -356,16 +356,6 @@ GET  /session/{id}/result       获取完整结果和消息文本
 | Fallback 数据 | JSON fixtures | API 不可用时兜底 |
 | LLM 接入 | LangChain 多 provider | main/fast 双档 |
 | 可观测性 | LangSmith | 全链路 trace |
-
----
-
-## 三天开发计划
-
-| Day | 后端 / Agent | 前端 |
-|-----|-------------|------|
-| Day 1 | LangGraph 状态图骨架 + 全部 Tool + Mock API + ChromaDB | Next.js 初始化 + ChatInput + AgentProgress 骨架 |
-| Day 2 | FastAPI 端点 + SSE 流 + 两个场景端到端跑通 + Replanning | PlanCards + ConfirmModal + useAgentStream hook |
-| Day 3 | 异常处理完善 + LangSmith 接入 | ExecProgress + 前后端联调 + 样式打磨 |
 
 ---
 

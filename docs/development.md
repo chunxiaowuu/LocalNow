@@ -4,6 +4,8 @@
 
 Notes on each module's implementation, key decisions, and gotchas.
 
+> **Note** — this is a chronological build log. The retrieval layer was later rebuilt from RAG/ChromaDB to a direct maps API (see Step 9); `tools/store.py`, `tools/search.py`, and ChromaDB are **legacy** and no longer on the main path. For the current data flow, see [architecture.md](architecture.md) and [design.md](design.md).
+
 ---
 
 ## Step 1: Project skeleton & environment
@@ -157,9 +159,11 @@ def reassign_ids(data, prefix):
         item["id"] = f"{prefix}{i+1:03d}"  # r001, r002 ...
 ```
 
-### Role of ChromaDB
+### Role of ChromaDB (legacy)
 
-Two query types use different retrieval:
+> Historical — the original RAG design, superseded by the maps API in Step 9.
+
+Two query types used different retrieval:
 
 ```
 hard constraints (exact) → JSON structured-field filter
@@ -188,11 +192,13 @@ Five files with separated responsibilities:
 
 | File | Responsibility |
 |------|----------------|
-| `tools/store.py` | ChromaDB init and retrieval interface |
-| `tools/search.py` | two-stage retrieval: hard filter + semantic ranking |
-| `tools/availability.py` | query venue/restaurant slot availability |
+| `tools/store.py` | ChromaDB init and retrieval interface — **legacy** (superseded in Step 9) |
+| `tools/search.py` | two-stage retrieval: hard filter + semantic ranking — **legacy** (superseded in Step 9) |
+| `tools/availability.py` | venue/restaurant slot availability — **legacy** (replaced by inline checks in Step 9) |
 | `tools/booking.py` | execute booking / ticketing / ordering |
 | `tools/notification.py` | send itinerary confirmation |
+
+> The `store.py` / `search.py` deep-dives below document the original RAG design and are kept for history; the live retrieval is the maps API in Step 9.
 
 ### tools/store.py
 
@@ -281,7 +287,7 @@ When `original_time_slot` ≠ `time_slot`, `BookingResult.fallback_applied=True`
 
 **All mock implementations**: no real API calls. The tool layer is interface-designed; swap internals in production without touching the LangGraph graph or tests.
 
-**Test coverage**: 36 pytest cases (19 availability + 10 booking + 7 notification), all passing.
+**Test coverage**: the suite now has 131 passing tests across the data/tools, availability/booking/notify, agent-routing, validation, models, and e2e layers (see `tests/README.md`).
 
 ---
 
@@ -323,12 +329,9 @@ All nodes needing structured LLM output use LangChain's `with_structured_output(
 llm = get_llm("fast").with_structured_output(ConstraintSet)
 constraints = llm.invoke([SystemMessage(...), HumanMessage(...)])
 
-# generate_plans (a list needs a wrapper model)
-class _PlansResponse(BaseModel):
-    plans: list[Plan]
-
-llm = get_llm("main").with_structured_output(_PlansResponse)
-response = llm.invoke([...])
+# generate_plans (current: one Plan per call, the N plans fired concurrently via asyncio)
+llm = get_llm("main").with_structured_output(Plan)
+plan = llm.invoke([...])
 ```
 
 `with_structured_output` uses tool_use on Anthropic and function calling on OpenAI, handled automatically — node code is provider-agnostic.

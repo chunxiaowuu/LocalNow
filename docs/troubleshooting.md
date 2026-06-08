@@ -203,7 +203,7 @@ print("✓ all passed" if total_errors == 0 else f"✗ found {total_errors} issu
 
 **Stage**: data generation
 
-**Problem**: generating 15 restaurants per batch over 3 batches, each batch started numbering from `rg001`, producing many duplicate IDs after merging. Duplicate IDs overwrite entries on ChromaDB index, leaving fewer records than expected.
+**Problem**: generating 15 restaurants per batch over 3 batches, each batch started numbering from `rg001`, producing many duplicate IDs after merging. Duplicate IDs overwrite entries when indexed, leaving fewer records than expected.
 
 **Fix**: reassign IDs uniformly after merging all batches:
 ```python

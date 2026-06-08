@@ -11,34 +11,26 @@
 uv run pytest tests/ -v
 
 # run a single module
-uv run pytest tests/test_availability.py -v
-uv run pytest tests/test_booking.py -v
-uv run pytest tests/test_notification.py -v
+uv run pytest tests/test_amap_http.py -v
+uv run pytest tests/test_timeline_validation.py -v
 uv run pytest tests/test_graph_routing.py -v
 
 # filter by keyword
 uv run pytest tests/ -k "fallback"
 uv run pytest tests/ -k "no_seat"
 
-# quiet mode (don't print each case name)
+# quiet mode
 uv run pytest tests/ -q
 ```
 
-## Coverage
+## Coverage (131 tests)
 
-### Tool layer (36 cases)
-
-| File | Cases | Covers |
-|------|-------|--------|
-| `test_availability.py` | 19 | restaurant/venue availability queries, fallback slots, edge cases |
-| `test_booking.py` | 10 | booking execution, final-check interception, fallback flags |
-| `test_notification.py` | 7 | single/batch notification sending, error handling for unsupported channels |
-
-### Agent layer (9 cases)
-
-| File | Cases | Covers |
-|------|-------|--------|
-| `test_graph_routing.py` | 9 | conditional-edge routing logic (no LLM calls) |
+| Layer | Files | Covers |
+|-------|-------|--------|
+| Data / tools | `test_amap_http.py`, `test_geo.py`, `test_travel.py` | maps client (geocode + nearby search + field mapping + fallback), haversine distance, geo-clustering, travel-time estimates |
+| Availability / booking / notify | `test_availability.py`, `test_booking.py`, `test_notification.py` | slot availability + fallback slots, booking execution + final-check, notification sending |
+| Agent | `test_graph_routing.py`, `test_timeline_validation.py` | conditional-edge routing (no LLM calls), programmatic timeline/budget validation |
+| Models / E2E | `test_phase1_models.py`, `test_e2e.py` | Pydantic schema contracts, end-to-end flow |
 
 ## Testing strategy
 
@@ -46,23 +38,20 @@ uv run pytest tests/ -q
 
 | Module | Method | Why |
 |--------|--------|-----|
-| Tool layer (availability/booking/notification) | pytest unit tests | pure deterministic logic, fixed I/O |
-| Graph conditional edges (routing functions) | pytest unit tests | pure functions; control-flow correctness is critical |
-| LLM nodes (parse_intent/generate_plans/send_notification) | no assertion tests | non-deterministic output; assertions would be brittle |
+| Deterministic tools (geo / travel / availability / booking / validation) | pytest unit tests | fixed I/O, pure logic |
+| Maps client (`amap_http`) | unit tests with the HTTP call mocked | assert request building + response→model mapping + fallback, without hitting the network |
+| Graph conditional edges (routing) | pytest unit tests | pure functions; control-flow correctness is critical |
+| LLM nodes (parse_intent / generate_plans / send_notification) | no assertion tests | non-deterministic output; assertions would be brittle |
 | LLM node behavior | LangSmith trace observation | verify I/O at runtime via traces |
 
-### Why we don't mock the data layer
+### Mock only at the external boundary
 
-Tool-layer tests use **real data** rather than mocks.
-
-Reason: mocking out the data layer means the test only verifies "the right mock was called," not "the logic is correct." Mocking out key dependencies is a primary source of test drift.
+Tests run the **real tool logic** and only mock the outermost dependency (the maps HTTP call). Mocking out internal logic would mean a test only verifies "the right mock was called" rather than "the logic is correct" — a primary source of test drift.
 
 ### Key test cases
 
 `test_availability.py::TestCheckRestaurantAvailability::test_r001_no_17_30_slot` — verifies the core fallback logic: restaurant `r001` has no 17:30 slot, returns `NO_SEAT` with `next_available_slot=18:30`.
 
-`test_graph_routing.py::TestRouteAfterAvailability::test_all_unavailable_at_limit_routes_to_error` — verifies that exceeding the replan cap routes correctly into the `handle_error` node, with no infinite loop.
+`test_graph_routing.py::TestRouteAfterAvailability::test_all_unavailable_at_limit_routes_to_error` — verifies that exceeding the replan cap routes into the `handle_error` node, with no infinite loop.
 
-## Shared fixtures
-
-`conftest.py` provides a session-scoped `store` fixture so the data store is initialized once per test session, avoiding repeated loading across test files.
+`test_amap_http.py` — verifies that the maps client maps POIs to `Venue`/`Restaurant` correctly and falls back to local mock data when there's no API key or the call fails.

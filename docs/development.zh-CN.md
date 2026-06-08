@@ -4,6 +4,8 @@
 
 记录各模块的技术实现、关键决策和注意事项。
 
+> **说明** —— 本文是按时间顺序的开发记录。检索层后来从 RAG/ChromaDB 重构为直接调用地图 API（见 Step 9）；`tools/store.py`、`tools/search.py` 和 ChromaDB 均为**遗留代码**，已不在主流程上。当前数据流见 [architecture.zh-CN.md](architecture.zh-CN.md) 与 [design.zh-CN.md](design.zh-CN.md)。
+
 ---
 
 ## Step 1：项目骨架与环境配置
@@ -21,7 +23,7 @@ LocalNow/
 │   ├── prompts/    # Prompt 模板文件
 │   ├── api/        # FastAPI 入口
 │   └── config.py   # 全局配置（读取 .env）
-├── frontend/       # Next.js 14 前端
+├── frontend/       # Next.js 前端
 └── docs/           # 文档
 ```
 
@@ -158,7 +160,9 @@ def reassign_ids(data, prefix):
         item["id"] = f"{prefix}{i+1:03d}"  # r001, r002 ...
 ```
 
-### ChromaDB 的角色
+### ChromaDB 的角色（遗留）
+
+> 历史内容 —— 最初的 RAG 设计，已在 Step 9 被地图 API 取代。
 
 两类查询使用不同检索方式：
 
@@ -189,11 +193,13 @@ Tool 层分五个文件，职责分离：
 
 | 文件 | 职责 |
 |------|------|
-| `tools/store.py` | ChromaDB 初始化与检索接口（已完成） |
-| `tools/search.py` | 两阶检索：硬约束过滤 + 语义排序（已完成） |
-| `tools/availability.py` | 查询场所/餐厅的时间段可用性（已完成） |
-| `tools/booking.py` | 执行预订/购票/下单动作（已完成） |
-| `tools/notification.py` | 发送行程确认通知（已完成） |
+| `tools/store.py` | ChromaDB 初始化与检索接口 —— **遗留**（Step 9 已替换） |
+| `tools/search.py` | 两阶检索：硬约束过滤 + 语义排序 —— **遗留**（Step 9 已替换） |
+| `tools/availability.py` | 场所/餐厅时段可用性 —— **遗留**（Step 9 改为内联检查） |
+| `tools/booking.py` | 执行预订/购票/下单动作 |
+| `tools/notification.py` | 发送行程确认通知 |
+
+> 下方 `store.py` / `search.py` 细节记录的是最初的 RAG 设计，仅作历史保留；当前检索为 Step 9 的地图 API。
 
 ### tools/store.py
 
@@ -283,7 +289,7 @@ book_venue(venue_id, party_size, requested_time) → BookingResult
 
 **全部为 Mock 实现**：无真实 API 调用。工具层面向接口设计，生产环境替换内部实现即可，LangGraph 图和测试不受影响。
 
-**测试覆盖**：36 个 pytest 用例（19 availability + 10 booking + 7 notification），全部通过。
+**测试覆盖**：当前测试套件共 131 个用例，覆盖 数据/工具、可用性/预订/通知、Agent 路由、校验、模型、E2E 各层（见 `tests/README.zh-CN.md`）。
 
 ---
 
@@ -326,12 +332,9 @@ _MODEL_MAP = {
 llm = get_llm("fast").with_structured_output(ConstraintSet)
 constraints = llm.invoke([SystemMessage(...), HumanMessage(...)])
 
-# generate_plans（list 需要 wrapper model）
-class _PlansResponse(BaseModel):
-    plans: list[Plan]
-
-llm = get_llm("main").with_structured_output(_PlansResponse)
-response = llm.invoke([...])
+# generate_plans（当前：每次调用产出 1 个 Plan，N 个方案用 asyncio 并发生成）
+llm = get_llm("main").with_structured_output(Plan)
+plan = llm.invoke([...])
 ```
 
 `with_structured_output` 在 Anthropic 下用 tool_use，在 OpenAI 下用 function calling，
