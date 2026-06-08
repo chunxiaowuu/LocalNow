@@ -1,80 +1,68 @@
-# 测试说明
+# Testing
 
-## 运行测试
+**English** | [中文](README.zh-CN.md)
+
+## Running tests
 
 ```bash
-# 在 backend/ 目录下执行
+# from the backend/ directory
 
-# 运行全部测试
+# run all tests
 uv run pytest tests/ -v
 
-# 只运行某个模块
+# run a single module
 uv run pytest tests/test_availability.py -v
 uv run pytest tests/test_booking.py -v
 uv run pytest tests/test_notification.py -v
 uv run pytest tests/test_graph_routing.py -v
 
-# 按关键词筛选
+# filter by keyword
 uv run pytest tests/ -k "fallback"
 uv run pytest tests/ -k "no_seat"
 
-# 简洁模式（不显示每个用例名）
+# quiet mode (don't print each case name)
 uv run pytest tests/ -q
 ```
 
-## 测试覆盖范围
+## Coverage
 
-### Tool 层（36 个用例）
+### Tool layer (36 cases)
 
-| 文件 | 用例数 | 覆盖内容 |
-|------|--------|---------|
-| `test_availability.py` | 19 | 餐厅/场所可用性查询、fallback 时间段、边界条件 |
-| `test_booking.py` | 10 | 预订执行、final check 拦截、fallback 标记 |
-| `test_notification.py` | 7 | 单条/批量通知发送、不支持渠道的错误处理 |
+| File | Cases | Covers |
+|------|-------|--------|
+| `test_availability.py` | 19 | restaurant/venue availability queries, fallback slots, edge cases |
+| `test_booking.py` | 10 | booking execution, final-check interception, fallback flags |
+| `test_notification.py` | 7 | single/batch notification sending, error handling for unsupported channels |
 
-### Agent 层（9 个用例）
+### Agent layer (9 cases)
 
-| 文件 | 用例数 | 覆盖内容 |
-|------|--------|---------|
-| `test_graph_routing.py` | 9 | 条件边路由逻辑（不涉及 LLM 调用） |
+| File | Cases | Covers |
+|------|-------|--------|
+| `test_graph_routing.py` | 9 | conditional-edge routing logic (no LLM calls) |
 
-**合计：45 个用例，全部通过。**
+## Testing strategy
 
-## 测试策略说明
+### What to test
 
-### 测什么
+| Module | Method | Why |
+|--------|--------|-----|
+| Tool layer (availability/booking/notification) | pytest unit tests | pure deterministic logic, fixed I/O |
+| Graph conditional edges (routing functions) | pytest unit tests | pure functions; control-flow correctness is critical |
+| LLM nodes (parse_intent/generate_plans/send_notification) | no assertion tests | non-deterministic output; assertions would be brittle |
+| LLM node behavior | LangSmith trace observation | verify I/O at runtime via traces |
 
-| 模块 | 测试方式 | 原因 |
-|------|---------|------|
-| Tool 层（availability/booking/notification） | pytest 单元测试 | 纯确定性逻辑，输入输出固定 |
-| Graph 条件边（路由函数） | pytest 单元测试 | 纯函数，控制流正确性至关重要 |
-| LLM 节点（parse_intent/generate_plans/send_notification） | 不写断言测试 | 输出非确定性，断言会脆 |
-| LLM 节点行为 | LangSmith trace 观测 | 运行时通过 trace 验证输入输出 |
+### Why we don't mock the data layer
 
-### 为什么不 mock 数据库
+Tool-layer tests use **real data** rather than mocks.
 
-Tool 层测试使用**真实 ChromaDB 和真实 JSON 数据**，不 mock。
+Reason: mocking out the data layer means the test only verifies "the right mock was called," not "the logic is correct." Mocking out key dependencies is a primary source of test drift.
 
-原因：mock 掉数据层后，测试只验证"调用了正确的 mock"，而不是"逻辑是否正确"。
-TravelPlanner 的工程实践也表明，mock 掉关键依赖是测试失真的主要来源。
+### Key test cases
 
-### 关键测试 case
+`test_availability.py::TestCheckRestaurantAvailability::test_r001_no_17_30_slot` — verifies the core fallback logic: restaurant `r001` has no 17:30 slot, returns `NO_SEAT` with `next_available_slot=18:30`.
 
-`test_availability.py::TestCheckRestaurantAvailability::test_r001_no_17_30_slot`
+`test_graph_routing.py::TestRouteAfterAvailability::test_all_unavailable_at_limit_routes_to_error` — verifies that exceeding the replan cap routes correctly into the `handle_error` node, with no infinite loop.
 
-验证 demo 核心 fallback 逻辑：外婆家（r001）17:30 无空位，返回 `NO_SEAT` 且 `next_available_slot=18:30`。
+## Shared fixtures
 
-`test_graph_routing.py::TestRouteAfterAvailability::test_all_unavailable_at_limit_routes_to_error`
-
-验证重规划次数超限后正确进入 `handle_error` 节点，不会无限循环。
-
-## 共享 Fixture
-
-`conftest.py` 提供 session 级 `store` fixture，整个测试会话只初始化一次 ChromaDB（约 3-5 秒），避免每个测试文件重复加载。
-
-```python
-@pytest.fixture(scope="session")
-def store():
-    from tools.store import get_store
-    return get_store()
-```
+`conftest.py` provides a session-scoped `store` fixture so the data store is initialized once per test session, avoiding repeated loading across test files.
