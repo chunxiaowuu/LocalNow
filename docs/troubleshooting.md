@@ -1,50 +1,47 @@
-# 开发问题记录
+# Troubleshooting
 
-记录项目开发过程中遇到的主要问题、根本原因和解决方案。
+**English** | [中文](troubleshooting.zh-CN.md)
+
+A log of the main problems hit during development, their root causes, and fixes.
 
 ---
 
-## 问题 1：hatchling 打包失败
+## 1. hatchling packaging failure
 
-**阶段**：环境配置
+**Stage**: environment setup
 
-**报错**：
+**Error**:
 ```
 ValueError: Unable to determine which files to ship inside the wheel
 The most likely cause: no directory matches the name of your project (localnow_backend)
 ```
 
-**根本原因**：
-hatchling 是 Python 打包工具，需要找到一个合法的 Python 包目录才能工作。
-我们只创建了目录但没有 `__init__.py`，Python 不认为这些是"包"。
+**Root cause**: hatchling needs a valid Python package directory to work. We created directories but no `__init__.py`, so Python didn't treat them as packages.
 
-**解决方案**：
-1. 在每个子目录下创建空的 `__init__.py` 文件
-2. 在 `pyproject.toml` 里声明包路径：
+**Fix**:
+1. Add an empty `__init__.py` to each subdirectory
+2. Declare package paths in `pyproject.toml`:
 ```toml
 [tool.hatch.build.targets.wheel]
 packages = ["agent", "api", "tools", "llm", "models", "prompts"]
 ```
 
-**经验**：Python 识别"包"的标志是目录下有 `__init__.py`，即使是空文件也必须存在。
+**Lesson**: Python recognizes a "package" by the presence of `__init__.py`, even an empty one.
 
 ---
 
-## 问题 2：终端多行命令缩进报错
+## 2. Indentation error with multi-line terminal commands
 
-**阶段**：环境验证
+**Stage**: environment verification
 
-**报错**：
+**Error**:
 ```
 IndentationError: unexpected indent
 ```
 
-**根本原因**：
-在终端用 `python -c "..."` 执行多行代码时，粘贴带缩进的代码，
-缩进字符被当成 Python 语法处理，导致报错。
+**Root cause**: running multi-line code via `python -c "..."` and pasting indented code makes the indentation get parsed as Python syntax.
 
-**解决方案**：
-改用 heredoc 语法执行多行代码：
+**Fix**: use heredoc instead:
 ```bash
 uv run python - <<'EOF'
 from config import config
@@ -54,191 +51,161 @@ EOF
 
 ---
 
-## 问题 3：API Key 泄露
+## 3. API key leak
 
-**阶段**：环境配置
+**Stage**: environment setup
 
-**问题**：将包含真实 API Key 的 `.env` 内容粘贴进了对话窗口，导致 Key 暴露。
+**Problem**: pasted `.env` content containing a real API key into a chat window, exposing the key.
 
-**根本原因**：
-对话内容可能被记录，API Key 一旦出现在非安全环境就视为泄露。
+**Root cause**: chat content may be logged; once a key appears in a non-secure context it must be treated as leaked.
 
-**解决方案**：
-1. 立即去 console.anthropic.com 撤销（Revoke）泄露的 Key
-2. 生成新 Key 替换
-3. 确保 `.env` 在 `.gitignore` 里，永远不提交到代码仓库
+**Fix**:
+1. Immediately revoke the leaked key in the provider console
+2. Generate a replacement
+3. Ensure `.env` is in `.gitignore` and never committed
 
-**经验**：API Key 只应出现在 `.env` 文件中，不能出现在代码、截图、对话、日志里。
+**Lesson**: API keys should only ever live in `.env` — never in code, screenshots, chats, or logs.
 
 ---
 
-## 问题 4：.env 同行注释导致配置读取异常
+## 4. Inline comments in .env breaking config reads
 
-**阶段**：环境配置
+**Stage**: environment setup
 
-**问题**：
+**Problem**:
 ```bash
 LLM_PROVIDER=anthropic  # anthropic | openai | deepseek | ollama
 ```
-`python-dotenv` 不同版本对同行注释的处理行为不一致，可能读到带注释的值。
+Different `python-dotenv` versions handle inline comments inconsistently and may read the value with the comment attached.
 
-**解决方案**：
-注释单独成行，值单独一行：
+**Fix**: put comments on their own line:
 ```bash
-# LLM Provider 选择：anthropic | openai | deepseek | ollama
+# LLM provider: anthropic | openai | deepseek | ollama
 LLM_PROVIDER=anthropic
 ```
 
 ---
 
-## 问题 5：Anthropic API 余额不足
+## 5. Anthropic API out of credit
 
-**阶段**：数据生成
+**Stage**: data generation
 
-**报错**：
+**Error**:
 ```
 anthropic.BadRequestError: 400 - Your credit balance is too low
 ```
 
-**根本原因**：Anthropic 账户余额为零，API 调用被拒绝。
+**Root cause**: zero account balance, API calls rejected.
 
-**解决方案**：
-数据生成是一次性任务，改用 Ollama 本地模型（qwen3:8b）替代：
-- Ollama 完全免费，无需 API Key
-- 暴露 OpenAI 兼容接口（`http://localhost:11434/v1`），代码改动极小
-- qwen3:8b 中文质量好，足以胜任数据生成任务
+**Fix**: data generation is a one-off task, so we switched to a local Ollama model (qwen3:8b):
+- Ollama is free, no API key needed
+- It exposes an OpenAI-compatible endpoint (`http://localhost:11434/v1`), so code changes are minimal
+- qwen3:8b has good Chinese quality, sufficient for data generation
 
-**经验**：
-工具链设计时要考虑降级路径。我们的 LLM Factory 多 provider 设计，
-正是为了在某个 provider 不可用时能快速切换。
+**Lesson**: design fallback paths into the toolchain. Our multi-provider LLM Factory exists precisely so we can switch quickly when one provider is unavailable.
 
 ---
 
-## 问题 6：Ollama 连接被拒绝
+## 6. Ollama connection refused
 
-**阶段**：数据生成
+**Stage**: data generation
 
-**报错**：
+**Error**:
 ```
 httpx.ConnectError: [Errno 111] Connection refused
 ```
 
-**根本原因**：
-WSL2 环境下 Ollama 不会自动作为后台服务启动，需要手动启动，
-或者 Ollama 根本还没有安装。
+**Root cause**: under WSL2, Ollama doesn't auto-start as a background service — it must be started manually (or wasn't installed yet).
 
-**解决方案**：
+**Fix**:
 ```bash
-# 安装（WSL2 用官方脚本，不要用 snap）
+# install (use the official script on WSL2, not snap)
 curl -fsSL https://ollama.com/install.sh | sh
 
-# 启动服务（安装后自动启动，重启 WSL 后需要重新启动）
+# start the service (restart needed after a WSL restart)
 ollama serve
 
-# 验证
+# verify
 ollama list
 ```
 
-**经验**：
-WSL2 没有 systemd，部分服务不能开机自启，需要手动管理。
-`snap install` 在 WSL2 里不可靠，应该用官方安装脚本。
+**Lesson**: WSL2 has no systemd, so some services can't auto-start and need manual management; `snap install` is unreliable on WSL2 — use the official installer.
 
 ---
 
-## 问题 7：generate.py 找不到 .env 文件
+## 7. generate.py can't find .env
 
-**阶段**：数据生成
+**Stage**: data generation
 
-**报错**：
+**Error**:
 ```
 TypeError: Could not resolve authentication method. Expected one of api_key...
 ```
 
-**根本原因**：
-`generate.py` 在 `data/` 子目录里，`load_dotenv()` 默认在当前目录找 `.env`，
-而 `.env` 在上一级的 `backend/` 目录。
+**Root cause**: `generate.py` is in the `data/` subdirectory; `load_dotenv()` looks for `.env` in the current directory, but `.env` is one level up in `backend/`.
 
-**解决方案**：
-显式指定 `.env` 路径：
+**Fix**: specify the `.env` path explicitly:
 ```python
 load_dotenv(Path(__file__).parent.parent / ".env")
 ```
 
-**经验**：
-在子目录里运行的脚本，读取配置文件要用相对于脚本位置的绝对路径，
-不能依赖"当前工作目录"，因为从不同目录调用脚本时结果不同。
+**Lesson**: scripts run from subdirectories should read config via a path relative to the script's location, not the current working directory.
 
 ---
 
-## 问题 8：LLM 输出 JSON 被截断
+## 8. LLM JSON output truncated
 
-**阶段**：数据生成
+**Stage**: data generation
 
-**报错**：
+**Error**:
 ```
 json.decoder.JSONDecodeError: Expecting ',' delimiter: line 1 column 6870
 ```
 
-**根本原因**：
-`max_tokens=4096` 不足以容纳 42 条餐厅数据的完整 JSON 输出
-（42条 × 约200 tokens/条 ≈ 8400 tokens）。
-模型在输出中途被强制截断，JSON 数组不完整，解析失败。
+**Root cause**: `max_tokens=4096` couldn't hold the full JSON for 42 restaurants (≈8400 tokens). The model was cut off mid-output, leaving an incomplete array.
 
-**解决方案**：
-分批生成，每批不超过 15 条，保证单次输出在 3000 tokens 以内：
+**Fix**: generate in batches of ≤15, keeping each output under ~3000 tokens:
 ```python
 def generate(prompt, label, total, batch_size=15):
     results = []
     batches = (total + batch_size - 1) // batch_size
     for i in range(batches):
         current = min(batch_size, total - len(results))
-        batch = generate_batch(prompt, current)  # 带重试
+        batch = generate_batch(prompt, current)  # with retry
         results.extend(batch)
     return results
 ```
+Each batch is independent and retries up to 3 times without affecting others.
 
-每批独立，失败自动重试 3 次，不影响其他批次。
-
-**经验**：
-让 LLM 生成大量结构化数据时，单次生成量要控制在输出 token 预算的 60% 以内，
-留出模型可能产生的额外说明文字空间。分批是处理本地模型输出限制的标准做法。
+**Lesson**: when generating large structured data, keep each generation under ~60% of the output token budget to leave room for stray explanatory text. Batching is the standard way to handle local-model output limits.
 
 ---
 
-## 问题 9：评估脚本汇总结论与实际结果不符
+## 9. Evaluation summary inconsistent with actual results
 
-**阶段**：数据评估
+**Stage**: data evaluation
 
-**问题**：
-评估脚本最后输出"结构验证失败=0"，但实际场所数据有 1 条结构验证失败。
-最终汇总是写死的静态文字，没有读取实际验证结果。
+**Problem**: the eval script printed "structure failures = 0" while one venue record actually failed validation. The final summary was hard-coded static text that didn't read the actual results.
 
-**解决方案**：
-每个评估函数返回失败条数，main() 汇总后基于实际数字打印结论：
+**Fix**: each eval function returns a failure count; `main()` prints conclusions based on the real numbers:
 ```python
 r_errors = evaluate_restaurants(restaurants)
 v_errors = evaluate_venues(venues)
 total_errors = r_errors + v_errors
-if total_errors == 0:
-    print("✓ 全部通过")
-else:
-    print(f"✗ 共发现 {total_errors} 个问题")
+print("✓ all passed" if total_errors == 0 else f"✗ found {total_errors} issues")
 ```
 
-**经验**：评估脚本的结论必须由代码计算得出，不能写死文字，否则等于没有评估。
+**Lesson**: an eval script's conclusions must be computed by code, not hard-coded — otherwise it isn't really evaluating anything.
 
 ---
 
-## 问题 10：分批生成导致数据 ID 重复
+## 10. Batched generation causing duplicate IDs
 
-**阶段**：数据生成
+**Stage**: data generation
 
-**问题**：
-分 3 批各生成 15 条餐厅数据，每批 LLM 都从 `rg001` 开始编号，
-合并后出现大量重复 ID。重复 ID 会导致 ChromaDB 索引时覆盖已有条目，数据实际少于预期。
+**Problem**: generating 15 restaurants per batch over 3 batches, each batch started numbering from `rg001`, producing many duplicate IDs after merging. Duplicate IDs overwrite entries when indexed, leaving fewer records than expected.
 
-**解决方案**：
-合并所有批次后统一重新分配 ID：
+**Fix**: reassign IDs uniformly after merging all batches:
 ```python
 def reassign_ids(data: list[dict], prefix: str) -> list[dict]:
     for i, item in enumerate(data):
@@ -246,27 +213,23 @@ def reassign_ids(data: list[dict], prefix: str) -> list[dict]:
     return data
 ```
 
-**经验**：不要信任 LLM 生成的 ID，任何需要全局唯一的字段都应该在代码层统一生成和管理。
+**Lesson**: don't trust LLM-generated IDs; any field that must be globally unique should be generated and managed in code.
 
 ---
 
-## 问题 11：SSE 连接在 generate_plans 执行期间超时断开
+## 11. SSE connection timing out during generate_plans
 
-**阶段**：前后端联调
+**Stage**: frontend/backend integration
 
-**现象**：
-前端显示"正在搜索附近场所和餐厅..."后，等待数分钟后出现"连接错误"，Agent 未能推送后续节点进度。
+**Symptom**: after the frontend showed "searching nearby venues and restaurants…", it waited several minutes then showed "connection error"; the agent never pushed subsequent node progress.
 
-**根本原因**：
-`graph.astream()` 只在节点执行完毕后才 yield chunk。`generate_plans` 调用本地 Ollama（qwen3:8b）生成结构化 JSON 需要 5-15 分钟。若 LLM 的 HTTP 调用阻塞了 asyncio 事件循环，sse-starlette 的 ping 心跳无法发出，TCP 连接因长时间无数据被浏览器判断超时断开。前端 `EventSource` 触发 `error` 事件，我们的代码直接关闭连接并报错。
+**Root cause**: `graph.astream()` only yields a chunk after a node finishes. `generate_plans` calling local Ollama (qwen3:8b) to produce structured JSON took 5–15 minutes. If the LLM's HTTP call blocked the asyncio event loop, sse-starlette's ping heartbeat couldn't fire, and the TCP connection was dropped by the browser as a timeout. The frontend `EventSource` fired `error`, and our code closed the connection and reported an error.
 
-**解决方案**：
-用 `asyncio.Queue` 将图的执行与 SSE 生成器解耦：
-- 图在独立的 `asyncio.create_task` 里运行，每完成一个节点把 chunk 放入队列
-- SSE 生成器每 5 秒从队列取一次，取不到就发 `heartbeat` 事件保活连接
-- 前端注册 `heartbeat` 监听器并忽略
+**Fix**: decouple graph execution from the SSE generator with an `asyncio.Queue`:
+- the graph runs in a separate `asyncio.create_task`, pushing a chunk to the queue after each node
+- the SSE generator polls the queue every 5s; on empty it emits a `heartbeat` event to keep the connection alive
+- the frontend registers a `heartbeat` listener and ignores it
 
-**涉及文件**：`api/routes.py`（后端），`app/page.tsx`（前端）
+**Files**: `api/routes.py` (backend), `app/page.tsx` (frontend)
 
-**经验**：
-SSE 长连接中，若服务端有耗时操作，必须确保心跳能独立于业务逻辑发出。将耗时任务放入 asyncio.Queue 并异步消费，是解决此类问题的标准模式。
+**Lesson**: in a long-lived SSE connection, if the server has a long-running operation the heartbeat must fire independently of business logic. Putting the slow task on an `asyncio.Queue` and consuming it asynchronously is the standard pattern.

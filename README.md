@@ -1,76 +1,78 @@
 # LocalNow
 
-> **题目6 · 本地短时活动规划与执行 Agent**（单人作品）
+**English** | [中文](README.zh-CN.md)
 
-接收一句口语目标——*"今天下午带老婆孩子 / 朋友出去玩几个小时，别太远，帮我安排"*——输出**可对比、可执行**的多环节行程（玩 → 吃 → 活动），用户确认后**一键完成关键预订**并把计划**分享给同伴**。
+A short-horizon local activity **planning and execution** agent.
 
-不是搜索推荐，是"帮你把事情做完"。
+Give it one casual goal — *"This afternoon I want to take my wife and kid (or some friends) out for a few hours, nothing too far, plan it for me"* — and it returns **comparable, executable** multi-step itineraries (play → eat → activity), then **completes the key bookings in one click** after you confirm and lets you **share the plan** with your companions.
 
-📄 **设计文档（Planning 策略 / 工具调用链路 / 异常处理）**：[docs/design.md](docs/design.md)
+Not search-and-recommend, but "get it done for you."
 
-## 它能做什么
+📄 **Design doc (planning strategy / tool-call chain / error handling)**: [docs/design.md](docs/design.md)
 
-- 🗣️ **口语目标 + 差异化场景**：结构化表单 + 自然语言补充；家庭（孩子 5 岁 → 亲子场所 + 儿童餐、老婆减肥 → 低卡餐厅）/ 朋友（多人聚会）自动套用不同约束。
-- 🗺️ **真实高德地图数据**：`geocode 地名 → 坐标 → 周边搜索`，**全国任意城市 / 区县 / 景区 / 海岛**都可用（无 API Key 时自动降级到本地 mock）。
-- 🧠 **LLM + LangGraph 工作流**：召回 → 生成 → **程序化时间/预算校验 + 失败回灌重试**（不只信 LLM 自述）→ 人在环路确认 / 带反馈重规划。
-- ❄️ **冷门诉求语义降级**：找不到"爆辣兔头面 / 莫奈特展"时，LLM 产出"具体→宽泛"检索阶梯逐级降级到相近人气候选，并向用户说明。
-- ⚡ **并发单方案生成**：多日行程墙钟耗时约提速 2 倍；请求超时 + 重试上限，防止单次调用卡死。
-- ✅ **确认后行程清单**：按天勾选"已完成 / 已预订"（localStorage 持久化）、**一键打开全部预订页**、复制 / 导出 PDF / 邮件分享。
-- 🔌 **多模型 Provider 抽象**（Gemini / LongCat / OpenAI / DeepSeek / Ollama，改 `.env` 即切换）；**Docker + GitHub Actions CI**。
+## What it does
 
-## 工作流（LangGraph，确定性编排 + 人在环路）
+- 🗣️ **Casual goal + scenario-aware constraints**: structured form + free-text; family (5-year-old → kid-friendly venues + children's menu, dieting → low-calorie restaurants) vs. friends (group outing) automatically apply different constraints.
+- 🗺️ **Real map data**: `geocode place → coordinates → nearby search`, works for **any city / district / scenic area / island** nationwide (auto-falls back to local mock when no API key is set).
+- 🧠 **LLM + LangGraph workflow**: retrieve → generate → **programmatic time/budget validation + feedback-retry** (don't just trust the LLM's self-report) → human-in-the-loop confirm / feedback-driven replan.
+- ❄️ **Semantic degradation for long-tail requests**: when an exact match (e.g. "extra-spicy rabbit-head noodles" / "Monet exhibition") isn't found, the LLM produces a "specific → broad" retrieval ladder that gracefully falls back to the closest popular candidates, and tells the user.
+- ⚡ **Concurrent per-plan generation**: roughly 2× faster wall-clock for multi-day itineraries; per-request timeout + retry cap prevent a single call from hanging.
+- ✅ **Post-confirmation itinerary checklist**: per-day "done / booked" checkboxes (persisted in localStorage), **open all booking pages in one click**, copy / export PDF / share by email.
+- 🔌 **Multi-provider LLM abstraction** (Gemini / LongCat / OpenAI / DeepSeek / Ollama, switch via `.env`); **Docker + GitHub Actions CI**.
+
+## Workflow (LangGraph: deterministic orchestration + human-in-the-loop)
 
 ```
 parse_intent → search_candidates → generate_plans → check_availability
-   ├─ 有可用方案 → [interrupt] human_review
-   │      ├─ 确认 → execute_bookings → send_notification → END
-   │      └─ 拒绝 → parse_replan_feedback → search_candidates …（重规划）
-   └─ 全部不可用 → 重规划 →（超上限）handle_error → END
+   ├─ plans available → [interrupt] human_review
+   │      ├─ confirm → execute_bookings → send_notification → END
+   │      └─ reject  → parse_replan_feedback → search_candidates … (replan)
+   └─ none available → replan → (over limit) handle_error → END
 ```
 
-## 项目结构
+## Project structure
 
 ```
 LocalNow/
-├── backend/          # Python 后端（FastAPI + LangGraph）
-│   ├── agent/        # 状态图与节点（解析/召回/生成/校验/预订/通知）
-│   ├── tools/        # 工具：amap_http(geocode+周边搜索)、geo、travel、links、notification
-│   ├── llm/          # LLM 工厂（多 provider 切换）
-│   ├── models/       # Pydantic 数据模型
-│   ├── data/         # 本地 mock 数据（无 API Key 时兜底）
-│   ├── prompts/      # Prompt 模板
-│   ├── api/          # FastAPI 入口（SSE 流式进度）
-│   └── tests/        # 单元测试（131 个）
-├── frontend/         # Next.js 16 前端（表单 / 实时进度 / 方案对比 / 行程清单）
-├── docs/             # design.md（设计文档）/ architecture.md / development.md
+├── backend/          # Python backend (FastAPI + LangGraph)
+│   ├── agent/        # State graph & nodes (parse / retrieve / generate / validate / book / notify)
+│   ├── tools/        # Tools: amap_http (geocode + nearby search), geo, travel, links, notification
+│   ├── llm/          # LLM factory (multi-provider switch)
+│   ├── models/       # Pydantic data models
+│   ├── data/         # Local mock data (fallback when no API key)
+│   ├── prompts/      # Prompt templates
+│   ├── api/          # FastAPI entry (SSE streaming progress)
+│   └── tests/        # Unit tests (131)
+├── frontend/         # Next.js 16 frontend (form / live progress / plan comparison / checklist)
+├── docs/             # design.md / architecture.md / development.md / deployment.md
 └── docker-compose.yml + .github/workflows/ci.yml
 ```
 
-## 快速开始
+## Quick start
 
-### 环境要求
+### Requirements
 
 - Python 3.11+ ·  Node.js 20+ ·  [uv](https://github.com/astral-sh/uv)
 
-### 后端
+### Backend
 
 ```bash
 cd backend
-cp .env.example .env      # 填入 API Key
+cp .env.example .env      # fill in API keys
 uv sync
 uv run uvicorn api.main:app --reload
 ```
 
-`.env` 关键配置：
+Key `.env` settings:
 
 ```env
-# LLM Provider：anthropic | openai | deepseek | gemini | ollama | longcat
+# LLM provider: anthropic | openai | deepseek | gemini | ollama | longcat
 LLM_PROVIDER=gemini
-GOOGLE_API_KEY=...         # 或对应 provider 的 Key
-AMAP_API_KEY=...           # 高德地图（真实场所/餐厅召回；缺省走本地 mock）
+GOOGLE_API_KEY=...         # or the key for your chosen provider
+AMAP_API_KEY=...           # maps (real venue/restaurant retrieval; falls back to mock if unset)
 ```
 
-### 前端
+### Frontend
 
 ```bash
 cd frontend
@@ -78,27 +80,27 @@ npm install
 npm run dev      # http://localhost:3000
 ```
 
-## Docker 一键启动
+## Docker (one command)
 
 ```bash
-cp .env.example .env      # 填入 LLM_PROVIDER / 对应 API Key / AMAP_API_KEY
+cp .env.example .env      # fill LLM_PROVIDER / its API key / AMAP_API_KEY
 docker compose up --build
 ```
 
-前端 http://localhost:3000 ·  后端 http://localhost:8000
-（`NEXT_PUBLIC_API_URL` 在前端构建时内联，浏览器直连后端；部署时改为后端公网地址并重新构建前端镜像。）
+Frontend http://localhost:3000 ·  Backend http://localhost:8000
+(`NEXT_PUBLIC_API_URL` is inlined into the frontend at build time and the browser talks to the backend directly; for deployment, set it to the backend's public URL and rebuild the frontend image.)
 
 ## CI
 
-GitHub Actions（`.github/workflows/ci.yml`）在 push 到 main 和所有 PR 上运行：
+GitHub Actions (`.github/workflows/ci.yml`) runs on push to main and every PR:
 
-- **backend**：`ruff check` + `pytest`
-- **frontend**：`tsc --noEmit` + `eslint` + `next build`
-- **docker**：构建前后端镜像（验证 Dockerfile）
+- **backend**: `ruff check` + `pytest`
+- **frontend**: `tsc --noEmit` + `eslint` + `next build`
+- **docker**: build backend & frontend images (validate Dockerfiles)
 
-## 文档
+## Docs
 
-- [设计文档 design.md](docs/design.md)：Planning 策略 / 工具调用链路（含 Tool + Mock 表）/ 异常处理机制
-- [架构设计 architecture.md](docs/architecture.md)：技术选型与设计决策
-- [开发记录 development.md](docs/development.md) · [问题记录 troubleshooting.md](docs/troubleshooting.md)
-- 测试说明：[backend/tests/README.md](backend/tests/README.md)
+- [Design — design.md](docs/design.md): planning strategy / tool-call chain (with tool + mock table) / error handling
+- [Architecture — architecture.md](docs/architecture.md): tech choices & design decisions
+- [Development — development.md](docs/development.md) · [Troubleshooting — troubleshooting.md](docs/troubleshooting.md)
+- [Deployment — deployment.md](docs/deployment.md) · Tests: [backend/tests/README.md](backend/tests/README.md)

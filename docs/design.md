@@ -1,71 +1,73 @@
-# LocalNow 设计文档
+# LocalNow — Design
 
-> 题目6 · 本地短时活动规划与执行 Agent ｜ 单人作品
-> 一句自然语言目标 →（玩→吃→活动的完整方案）→ 用户确认 → 一键预订并分享给同伴
+**English** | [中文](design.zh-CN.md)
 
-## 0. 一句话
-把"下午想和老婆孩子/朋友出去玩几个小时，别太远，帮我安排"这类口语目标，变成**可对比、可执行**的多环节行程，并在确认后**完成关键预订动作**、把计划**一键分享**出去——不是搜索推荐，是"帮你把事情做完"。
+> A short-horizon local activity planning & execution agent.
+> One natural-language goal → (a full play → eat → activity plan) → user confirms → one-click booking & sharing.
 
-支持两类场景的差异化约束：**家庭**（孩子 5 岁→亲子场所+儿童餐、老婆减肥→低卡餐厅）；**朋友**（4 人聚会→人数/分量/热闹氛围）。
+## 0. In one line
+Turn a casual goal like *"this afternoon I want to take my wife and kid / friends out for a few hours, nothing too far, plan it for me"* into **comparable, executable** multi-step itineraries, then **complete the key bookings** after confirmation and **share the plan in one click** — not search-and-recommend, but "get it done for you."
 
----
-
-## 1. Planning 策略
-
-采用 **Workflow（确定性编排）而非 ReAct**：环节顺序固定、每步职责单一，便于校验、调试与复现；只在"需要语义判断"处用 LLM，其余用程序逻辑保证可靠性。
-
-1. **意图解析 `parse_intent`（混合模式）**
-   结构化表单（日期/人数/城市/偏好/时长/距离）零 LLM 直接映射；自然语言补充（"想看莫奈特展、老婆减肥"）走一次 fast-LLM 抽取：低卡、亲子、起始时间、预算、以及"具体想吃/想去"的诉求。偏好→活动类别+权重；family→亲子/儿童餐。
-2. **候选召回 `search_candidates`**
-   `geocode 地名→坐标` + 高德**周边搜索**召回真实场所/餐厅（全国任意城市/区县/景区可用）；haversine 距离 + 游玩时长 + 人均预算**硬过滤**；按评分（热度代理）排序；按天数做地理聚类。
-   *冷启动语义降级*：冷门诉求（"爆辣兔头面"）由 LLM 产出"具体→宽泛"检索词阶梯，逐级召回直到有结果，降级到相近的人气候选并向用户说明。
-3. **方案生成 `generate_plans`**
-   按"每天时长"决定环节数（半天=1 活动+1 餐；全天=2–3 活动+2 餐），多天按 `day` 分别编排；**并发**生成 2 个风格不同、可对比的方案（每个方案一次独立调用，更快且互不阻塞）。
-4. **程序化校验（不只信 LLM 自述）**
-   `validate_timeline`：时间连续性/无重叠、每天总时长≤上限、**每天**人均费用≤预算、天数完整；跨天不重复同一地点、跨方案不雷同。校验失败把错误**回灌 prompt 重试**（硬约束必重试、软约束≤1 次）。
-5. **人在环路 `human_review`（interrupt/resume）**
-   只把"全部环节可用"的方案推给用户；用户**确认**→执行；或**带反馈重规划**（在某方案上微调 / 全部重来），反馈驱动重新召回。
+Supports scenario-aware constraints: **family** (5-year-old → kid-friendly venues + children's menu; dieting → low-calorie restaurants); **friends** (group of 4 → party size / portions / lively atmosphere).
 
 ---
 
-## 2. 工具调用链路
+## 1. Planning strategy
 
-LangGraph 状态图（节点 = Agent 步骤，条件边 = 决策）：
+Uses a **deterministic workflow rather than ReAct**: fixed step order, single responsibility per step — easy to validate, debug, and reproduce. The LLM is used only where semantic judgment is needed; everything else is program logic for reliability.
+
+1. **Intent parsing `parse_intent` (hybrid)**
+   The structured form (date / party size / city / preferences / duration / distance) maps directly with zero LLM; free-text ("want to see the Monet exhibition, wife is dieting") goes through one fast-LLM extraction: low-calorie, kid-friendly, start time, budget, and specific "want to eat / want to visit" requests. Preferences → activity categories + weights; family → kid-friendly / children's menu.
+2. **Candidate retrieval `search_candidates`**
+   `geocode place → coordinates` + **nearby search** retrieves real venues/restaurants (works for any city / district / scenic area nationwide); **hard-filters** on haversine distance + visit duration + per-person budget; ranks by rating (popularity proxy); geo-clusters by day.
+   *Cold-start semantic degradation*: for long-tail requests ("extra-spicy rabbit-head noodles") the LLM produces a "specific → broad" keyword ladder, retrieving level by level until results appear, falling back to the closest popular candidates and telling the user.
+3. **Plan generation `generate_plans`**
+   Step count scales with per-day duration (half day = 1 activity + 1 meal; full day = 2–3 activities + 2 meals); multi-day plans are arranged per `day`. Generates 2 stylistically distinct, comparable plans **concurrently** (one independent call per plan — faster and non-blocking).
+4. **Programmatic validation (don't just trust the LLM's self-report)**
+   `validate_timeline`: time continuity / no overlap, per-day total duration ≤ limit, **per-day** per-person cost ≤ budget, full day coverage; no repeated venue across days, no near-duplicate plans. On failure, the error is **fed back into the prompt for a retry** (hard constraints always retry; soft constraints ≤ 1).
+5. **Human-in-the-loop `human_review` (interrupt/resume)**
+   Only fully-available plans are shown to the user; the user **confirms** → execute; or **replans with feedback** (tweak one plan / start over), which drives re-retrieval.
+
+---
+
+## 2. Tool-call chain
+
+LangGraph state graph (nodes = agent steps, conditional edges = decisions):
 
 ```
 parse_intent → search_candidates → generate_plans → check_availability
-   ├─ 有可用方案 → [interrupt] human_review
-   │      ├─ 确认 → execute_bookings → send_notification → END
-   │      └─ 拒绝 → increment_replan → parse_replan_feedback → search_candidates …
-   └─ 全部不可用 → increment_replan →（超上限）handle_error → END
+   ├─ plans available → [interrupt] human_review
+   │      ├─ confirm → execute_bookings → send_notification → END
+   │      └─ reject  → increment_replan → parse_replan_feedback → search_candidates …
+   └─ none available → increment_replan → (over limit) handle_error → END
 ```
 
-**Tool 实现（均含 Mock，无 Key / 失败自动降级到本地 JSON）：**
+**Tool implementations (all include mock — auto-fall back to local JSON on no key / failure):**
 
-| Tool | 输入 | 输出 | Mock 方式 |
+| Tool | Input | Output | Mock |
 |---|---|---|---|
-| `geocode_city` | 地名 | 坐标（+缓存） | 15 城本地缓存兜底 |
-| `_search_pois`（周边搜索） | 关键词+坐标 | 真实 POI | 无 |
-| `fetch_venues` / `fetch_restaurants` | 城市/偏好/预算/人数 | `Venue[]`/`Restaurant[]` | 无 Key→`data/*_full.json` |
-| `check_availability`（内联） | 方案+时间+人数 | 营业时间(正则 opening_hours) / 餐厅时段+容量 → 是否需换时段/排队 | 用候选自带字段 |
-| `execute_bookings` | 选定方案 | `BookingResult[]`（下单/预约） | **演示模式**：构造成功结果，标注"请前往官方渠道完成"；可直接替换真实下单 API |
-| `amap_marker_uri`/`amap_search_uri` | 场所名+坐标 | 地图/预订跳转链接 | 程序拼接（不让 LLM 编造） |
-| `send_notification` / 行程清单 | 方案 | 复制文本 / PDF / 邮件分享，把计划发给同伴 | mailto / 打印 / Blob |
+| `geocode_city` | place name | coordinates (+ cache) | 15-city local cache fallback |
+| `_search_pois` (nearby search) | keywords + coordinates | real POIs | — |
+| `fetch_venues` / `fetch_restaurants` | city / preferences / budget / party size | `Venue[]` / `Restaurant[]` | no key → `data/*_full.json` |
+| `check_availability` (inline) | plan + time + party size | opening hours (regex) / restaurant slots + capacity → need reschedule / queue? | from candidate fields |
+| `execute_bookings` | selected plan | `BookingResult[]` (order / reservation) | **demo mode**: builds success results marked "complete via official channel"; swap in a real booking API directly |
+| `amap_marker_uri` / `amap_search_uri` | venue name + coordinates | map / booking deep links | string-built (never LLM-fabricated) |
+| `send_notification` / checklist | plan | copy text / PDF / email share | mailto / print / Blob |
 
-**前端落地**：确认后进入**行程清单**——按天展示、每项可勾选"已完成/已预订"（localStorage 持久化）、**一键打开全部预订页**、复制/导出 PDF/邮件分享。
-
----
-
-## 3. 异常处理机制
-
-- **数据源**：无 API Key / 网络失败 / 空结果 → 降级本地 mock；候选被硬约束全过滤 → 返回空（**不掩盖**"预算内无匹配"），再由安全网放宽距离重召回，杜绝异地数据/编造。
-- **冷门城市**（如海陵岛）：文本搜索的 `city` 只认行政市、会静默返回默认（北京）结果 → 改为 `geocode→周边搜索`，全国可用。
-- **冷门诉求**：精确关键词召回为空 → 语义降级阶梯逐级放宽，降级仍向用户透明说明"未找到 X，这是相近推荐"。
-- **LLM 不可靠**：结构化输出 schema 校验失败 → 回灌错误重试；**请求超时 + 重试上限**（实测遇到 ~930s 卡死的离群值 → 上限 240s）；空响应 → 重试而非崩溃。
-- **可用性**：场所不在营业时间 / 餐厅无位 → 标注原因并触发重规划替换；重规划超上限 → `handle_error` 友好兜底，不无限循环。
-- **预订**：演示模式明确标注，避免误导；接入真实下单后直接替换返回值。
-- **前端**：非法链接（非 http）不渲染，避免 404；会话内存存储（已知项，生产换 Redis）。
+**Frontend delivery**: after confirmation, an **itinerary checklist** — per-day view, each item toggleable "done / booked" (localStorage-persisted), **open all booking pages in one click**, copy / export PDF / email share.
 
 ---
 
-**技术栈**：Python · FastAPI · LangGraph · 高德地图 REST API · Next.js · Docker + GitHub Actions CI；多模型 Provider 抽象（Gemini / LongCat / OpenAI / DeepSeek / Ollama，改 `.env` 即切换）。
+## 3. Error handling
+
+- **Data source**: no API key / network failure / empty result → fall back to local mock; if candidates are entirely removed by hard filters → return empty (**don't mask** "no match within budget"), then a safety net relaxes distance and re-retrieves — no out-of-region data, no fabrication.
+- **Obscure places** (e.g. Hailing Island): text search's `city` only accepts administrative cities and silently returns a default (Beijing) → switched to `geocode → nearby search`, works nationwide.
+- **Long-tail requests**: exact-keyword retrieval empty → semantic-degradation ladder broadens level by level, and on degradation transparently tells the user "X not found, here's a close match."
+- **Unreliable LLM**: structured-output schema validation failure → feed-back-and-retry; **per-request timeout + retry cap** (saw a ~930s hung outlier → capped at 240s); empty response → retry instead of crash.
+- **Availability**: venue outside opening hours / restaurant full → annotate the reason and trigger a replan/replacement; over the replan cap → `handle_error` graceful fallback, no infinite loop.
+- **Booking**: demo mode is clearly labeled to avoid misleading; swap in real ordering and replace the return value.
+- **Frontend**: invalid links (non-http) not rendered, avoiding 404s; in-memory session storage (known item; use Redis in production).
+
+---
+
+**Tech stack**: Python · FastAPI · LangGraph · maps REST API · Next.js · Docker + GitHub Actions CI; multi-provider LLM abstraction (Gemini / LongCat / OpenAI / DeepSeek / Ollama, switch via `.env`).
