@@ -1,6 +1,6 @@
 # Troubleshooting
 
-[中文](troubleshooting.zh-CN.md) | **English**
+**English** | [中文](troubleshooting.zh-CN.md)
 
 A log of the main problems hit during development, their root causes, and fixes.
 
