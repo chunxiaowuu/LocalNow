@@ -211,13 +211,6 @@ class BookingResult(BaseModel):
     fallback_applied: bool = False
 
 
-class ToolError(BaseModel):
-    code: ToolErrorCode
-    message: str
-    retryable: bool = True
-    context: dict = {}
-
-
 # ---------------------------------------------------------------------------
 # API 请求 / 响应
 # ---------------------------------------------------------------------------

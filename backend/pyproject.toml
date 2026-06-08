@@ -9,11 +9,9 @@ dependencies = [
     # LLM Providers
     "langchain-anthropic>=0.3",
     "langchain-openai>=0.2",
-    # 结构化输出
-    "instructor>=1.5",
+    # 数据模型
     "pydantic>=2.0",
-    # 语义检索
-    "chromadb>=0.5",
+    "pydantic-settings>=2.0",
     # FastAPI
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",
