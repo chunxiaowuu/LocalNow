@@ -4,7 +4,7 @@
 
 Notes on each module's implementation, key decisions, and gotchas.
 
-> **Note** — this is a chronological build log. The retrieval layer was later rebuilt from RAG/ChromaDB to a direct maps API (see Step 9); `tools/store.py`, `tools/search.py`, and ChromaDB are **legacy** and no longer on the main path. For the current data flow, see [architecture.md](architecture.md) and [design.md](design.md).
+> **Note** — this is a chronological build log. The retrieval layer was rebuilt from RAG/ChromaDB to a direct maps API (see Step 9); the original RAG modules have since been **removed**. For the current data flow, see [architecture.md](architecture.md) and [design.md](design.md).
 
 ---
 
@@ -119,14 +119,14 @@ Simulates "the candidate pool within 5 km of the user," not all of Shanghai:
 - Restaurants: 50 (8 hand-written seeds + 42 LLM-generated)
 - Venues: 30 (6 hand-written seeds + 24 LLM-generated)
 
-After per-scenario filtering, ~15–20 valid candidates remain — enough for agent planning and semantic retrieval.
+After per-scenario filtering, ~15–20 valid candidates remain — enough for agent planning and ranking.
 
 ### Generation strategy
 
 ```
 Options compared:
   open dataset → little legal open data for China local life, high cleaning cost
-  Faker        → semantically poor tags, poor retrieval
+  Faker        → semantically poor tags
   LLM-generated → rich natural-language tags, close to real user phrasing  ← chosen
 ```
 
@@ -159,22 +159,6 @@ def reassign_ids(data, prefix):
         item["id"] = f"{prefix}{i+1:03d}"  # r001, r002 ...
 ```
 
-### Role of ChromaDB (legacy)
-
-> Historical — the original RAG design, superseded by the maps API in Step 9.
-
-Two query types used different retrieval:
-
-```
-hard constraints (exact) → JSON structured-field filter
-  has_kids_menu=True, distance<5km, available=True
-
-soft preferences (fuzzy) → ChromaDB semantic retrieval
-  "relaxed", "good for chatting", "a bit niche"
-```
-
-The tags field is the core input for semantic retrieval — the root reason for choosing LLM-generated data over Faker.
-
 ### Data evaluation
 
 `data/evaluate.py` validates generated data in three layers:
@@ -188,106 +172,19 @@ Conclusions are computed by code, not hard-coded, to avoid mismatches with reali
 
 ## Step 4: Tool layer
 
-Five files with separated responsibilities:
+Small, focused modules with separated concerns:
 
 | File | Responsibility |
 |------|----------------|
-| `tools/store.py` | ChromaDB init and retrieval interface — **legacy** (superseded in Step 9) |
-| `tools/search.py` | two-stage retrieval: hard filter + semantic ranking — **legacy** (superseded in Step 9) |
-| `tools/availability.py` | venue/restaurant slot availability — **legacy** (replaced by inline checks in Step 9) |
-| `tools/booking.py` | execute booking / ticketing / ordering |
-| `tools/notification.py` | send itinerary confirmation |
+| `tools/amap_http.py` | maps client: `geocode_city`, nearby POI search, mapping to `Venue`/`Restaurant`; falls back to local mock JSON when there's no API key or the call fails |
+| `tools/geo.py` | haversine distance, greedy geo-clustering (pure functions) |
+| `tools/travel.py` | visit-duration constants, travel-time estimates, cluster radius (pure functions) |
+| `tools/links.py` | build map / booking deep links from a name + coordinates (never LLM-fabricated) |
+| `tools/notification.py` | render the itinerary summary for sharing |
 
-> The `store.py` / `search.py` deep-dives below document the original RAG design and are kept for history; the live retrieval is the maps API in Step 9.
+These are pure/deterministic functions or thin HTTP wrappers, so they're easy to unit-test (mocking only the outermost HTTP call). Availability is checked inline in the graph against the candidate data; booking is handled inline in the `execute_bookings` node, which builds `BookingResult` objects directly (demo mode — swap in a real ordering API without touching the graph).
 
-### tools/store.py
-
-**Core**: lazy singleton `get_store()`
-
-```python
-_store: DataStore | None = None
-
-def get_store() -> DataStore:
-    global _store
-    if _store is None:
-        _store = DataStore()
-    return _store
-```
-
-Lazy init (vs. module-level `store = DataStore()`) avoids `FileNotFoundError` on import in test environments or when data files aren't generated.
-
-**ChromaDB init**:
-
-```python
-client = chromadb.EphemeralClient()   # in-memory; clearer semantics than Client()
-venue_col = client.create_collection("venues", embedding_function=_EF)
-venue_col.add(
-    ids=[v["id"] for v in venues_raw],
-    documents=[f"{v['name']} {' '.join(v.get('tags', []))}" for v in venues_raw],
-    metadatas=[_venue_metadata(v) for v in venues_raw],
-)
-```
-
-Embedding text = `name + tags`; nested fields like coordinates don't go into metadata (ChromaDB only supports str/int/float/bool) and are kept in a `_raw` dict to rebuild the full Pydantic object.
-
-**Version check**: ChromaDB's `$in` operator had a bug before 0.5.0, so we validate on import:
-
-```python
-major, minor, *_ = (int(x) for x in chromadb.__version__.split(".")[:3])
-if (major, minor) < (0, 5):
-    raise RuntimeError(f"chromadb >= 0.5.0 required, found {chromadb.__version__}")
-```
-
-### tools/search.py
-
-**Two-stage retrieval**:
-
-```
-hard constraints (kids_friendly, distance, budget...) → ChromaDB where-clause exact filter
-soft preferences ("quiet", "good for chatting"...)     → vector-similarity ranking
-both in one query() call
-```
-
-**Constraint mapping**: only add a where-filter when the constraint is True / non-empty, to avoid over-narrowing:
-
-```python
-kids_friendly = True if ac.kids_friendly else None   # False = no filter
-```
-
-The friends scenario (`kids_friendly=False`) adds no filter; all venues enter the pool, with priority decided by semantic ranking.
-
-**`preferred_categories` filtered in Python**: combined with other AND conditions, ChromaDB's `$in` nesting is deep and behavior unguaranteed; with small data (30) Python filtering has no perf issue.
-
-### tools/availability.py
-
-Two public interfaces + two internal helpers:
-
-```python
-check_restaurant_availability(restaurant_id, requested_time, party_size) → AvailabilityResult
-check_venue_availability(venue_id, requested_time) → AvailabilityResult
-
-_parse_time(t: str) → int           # "17:30" → 1050 minutes, for comparison
-_next_available_slot(slots, time)   # first slot later than time
-```
-
-`AvailabilityResult.retryable` drives the replan strategy:
-- `retryable=True` (slot conflict) → retry with another slot
-- `retryable=False` (over capacity / closed) → switch venue
-
-### tools/booking.py
-
-Executes bookings with a final check first, to guard against the planning→execution window going stale:
-
-```python
-book_restaurant(restaurant_id, time_slot, party_size, *, original_time_slot=None) → BookingResult
-book_venue(venue_id, party_size, requested_time) → BookingResult
-```
-
-When `original_time_slot` ≠ `time_slot`, `BookingResult.fallback_applied=True`, and the frontend shows a "time adjusted for you" notice.
-
-**All mock implementations**: no real API calls. The tool layer is interface-designed; swap internals in production without touching the LangGraph graph or tests.
-
-**Test coverage**: the suite now has 131 passing tests across the data/tools, availability/booking/notify, agent-routing, validation, models, and e2e layers (see `tests/README.md`).
+See [architecture.md](architecture.md) for the full tool catalog. Test coverage: 131 passing tests (see [tests/README.md](../backend/tests/README.md)).
 
 ---
 
@@ -610,10 +507,7 @@ Three inconsistencies found and fixed together:
 3. `tools/amap_http.py` — maps keyword-search client with layered fallback (empty key → mock, API error → mock, API empty → mock, empty after filtering → return empty to respect constraints)
 4. `search_candidates` becomes `async def`, with `asyncio.gather + asyncio.to_thread` retrieving the two data sources in parallel
 
-**Legacy code (kept, awaiting a real booking API)**:
-- `tools/store.py` — ChromaDB init, only referenced by `booking.py` (mock booking)
-- `tools/search.py` — two-stage retrieval wrapper, no longer imported by the main flow
-- `tools/availability.py` — `check_venue/restaurant_availability` depended on store IDs, deprecated after Step 5, replaced by inline checks on candidate data
+**Removed with this migration**: the RAG data layer (`tools/store.py` ChromaDB index, `tools/search.py` two-stage retrieval, `tools/availability.py` store-ID-based checks, and the standalone `tools/booking.py`) became dead code and was deleted. Availability is now checked inline against the candidate data, and `execute_bookings` builds `BookingResult` objects directly.
 
 ### parse_intent hybrid mode (Step 4)
 

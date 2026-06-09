@@ -128,7 +128,7 @@ Industry-standard validation-retry loop:
 
 ### 3. Maps API + programmatic scoring (retrieval)
 
-> **Architecture evolution**: the initial version used in-memory ChromaDB for vector semantic retrieval (RAG), later switched to calling a maps REST API directly. Real data covers nationwide POIs and reflects real-world availability better than 80 mock records; real API integration also demonstrates more engineering depth than local vector retrieval. `tools/store.py` and `tools/search.py` are now legacy; only `booking.py` (mock booking) still references the store.
+> **Architecture evolution**: the initial version used in-memory ChromaDB for vector semantic retrieval (RAG), later switched to calling a maps REST API directly. Real data covers nationwide POIs and reflects real-world availability better than 80 mock records; real API integration also demonstrates more engineering depth than local vector retrieval. the old RAG modules (`tools/store.py`, `tools/search.py`) have since been removed.
 
 The retrieval layer uses the maps keyword-search endpoint:
 
@@ -145,12 +145,12 @@ preference tags → keyword mapping
 
 #### Cold-start retrieval ladder (retrieval-side semantic degradation)
 
-When a user makes a specific, long-tail request ("extra-spicy rabbit-head noodles", "Monet exhibition"), exact keywords often return nothing. The fix does semantic degradation on the **retrieval side**, not by filtering candidates:
+When a user makes a specific, long-tail request ("a specific ramen shop", "a Monet exhibition"), exact keywords often return nothing. The fix does semantic degradation on the **retrieval side**, not by filtering candidates:
 
 ```
 parse_intent (fast LLM, world knowledge)
   → produces a "specific → broad" retrieval ladder
-     rabbit-head noodles → [rabbit-head noodles, Sichuan noodle house, noodle house]
+     ramen → [a specific ramen shop, ramen restaurant, noodle restaurant]
      Monet exhibition    → [Monet exhibition, art exhibition, art museum, museum/exhibition hall]
 
 _laddered_fetch (generic helper, shared by dining/venues)
