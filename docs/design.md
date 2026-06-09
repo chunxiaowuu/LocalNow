@@ -20,7 +20,7 @@ Uses a **deterministic workflow rather than ReAct**: fixed step order, single re
    The structured form (date / party size / city / preferences / duration / distance) maps directly with zero LLM; free-text ("want to see the Monet exhibition, wife is dieting") goes through one fast-LLM extraction: low-calorie, kid-friendly, start time, budget, and specific "want to eat / want to visit" requests. Preferences → activity categories + weights; family → kid-friendly / children's menu.
 2. **Candidate retrieval `search_candidates`**
    `geocode place → coordinates` + **nearby search** retrieves real venues/restaurants (works for any city / district / scenic area nationwide); **hard-filters** on haversine distance + visit duration + per-person budget; ranks by rating (popularity proxy); geo-clusters by day.
-   *Cold-start semantic degradation*: for long-tail requests ("extra-spicy rabbit-head noodles") the LLM produces a "specific → broad" keyword ladder, retrieving level by level until results appear, falling back to the closest popular candidates and telling the user.
+   *Cold-start semantic degradation*: for long-tail requests ("a specific ramen shop") the LLM produces a "specific → broad" keyword ladder, retrieving level by level until results appear, falling back to the closest popular candidates and telling the user.
 3. **Plan generation `generate_plans`**
    Step count scales with per-day duration (half day = 1 activity + 1 meal; full day = 2–3 activities + 2 meals); multi-day plans are arranged per `day`. Generates 2 stylistically distinct, comparable plans **concurrently** (one independent call per plan — faster and non-blocking).
 4. **Programmatic validation (don't just trust the LLM's self-report)**

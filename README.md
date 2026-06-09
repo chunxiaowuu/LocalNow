@@ -15,7 +15,7 @@ Not search-and-recommend, but "get it done for you."
 - 🗣️ **Casual goal + scenario-aware constraints**: structured form + free-text; family (5-year-old → kid-friendly venues + children's menu, dieting → low-calorie restaurants) vs. friends (group outing) automatically apply different constraints.
 - 🗺️ **Real map data**: `geocode place → coordinates → nearby search`, works for **any city / district / scenic area / island** nationwide (auto-falls back to local mock when no API key is set).
 - 🧠 **LLM + LangGraph workflow**: retrieve → generate → **programmatic time/budget validation + feedback-retry** (don't just trust the LLM's self-report) → human-in-the-loop confirm / feedback-driven replan.
-- ❄️ **Semantic degradation for long-tail requests**: when an exact match (e.g. "extra-spicy rabbit-head noodles" / "Monet exhibition") isn't found, the LLM produces a "specific → broad" retrieval ladder that gracefully falls back to the closest popular candidates, and tells the user.
+- ❄️ **Semantic degradation for long-tail requests**: when an exact match (e.g. "a specific ramen shop" or "a Monet exhibition") isn't found, the LLM produces a "specific → broad" retrieval ladder that gracefully falls back to the closest popular candidates, and tells the user.
 - ⚡ **Concurrent per-plan generation**: roughly 2× faster wall-clock for multi-day itineraries; per-request timeout + retry cap prevent a single call from hanging.
 - ✅ **Post-confirmation itinerary checklist**: per-day "done / booked" checkboxes (persisted in localStorage), **open all booking pages in one click**, copy / export PDF / share by email.
 - 🔌 **Multi-provider LLM abstraction** (Gemini / LongCat / OpenAI / DeepSeek / Ollama, switch via `.env`); **Docker + GitHub Actions CI**.
