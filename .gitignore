@@ -27,3 +27,8 @@ chroma_data/
 
 # rate-limit local store
 backend/ratelimit.db
+
+# internal-only docs (kept locally, not published)
+docs/troubleshooting.md
+docs/troubleshooting.zh-CN.md
+progress.md

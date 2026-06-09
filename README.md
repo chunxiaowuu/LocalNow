@@ -102,5 +102,5 @@ GitHub Actions (`.github/workflows/ci.yml`) runs on push to main and every PR:
 
 - [Design — design.md](docs/design.md): planning strategy / tool-call chain (with tool + mock table) / error handling
 - [Architecture — architecture.md](docs/architecture.md): tech choices & design decisions
-- [Development — development.md](docs/development.md) · [Troubleshooting — troubleshooting.md](docs/troubleshooting.md)
+- [Development — development.md](docs/development.md)
 - [Deployment — deployment.md](docs/deployment.md) · Tests: [backend/tests/README.md](backend/tests/README.md)
