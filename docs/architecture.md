@@ -16,11 +16,7 @@ A short-horizon local activity planning and execution agent.
 
 ## System nature
 
-Following Anthropic's *Building Effective Agents* (2024.12) distinction between Workflow and Agent:
-
-**This system is a Workflow, not an autonomous agent.**
-
-Reason: the execution path is enumerable, the steps are predictable, and there is a mandatory human-confirmation node. The LLM handles semantic understanding and creative planning; tools handle everything that needs precision (availability / distance / price). The two have strictly separated responsibilities.
+LocalNow is a planning **agent** implemented as a deterministic **workflow** (the LangGraph state graph fixes the step order), not an autonomous ReAct agent that picks its own tools — a deliberate reliability choice (see the TravelPlanner comparison below). The LLM handles semantic understanding, creative planning, and replanning trade-offs; code owns everything that needs precision (availability / distance / budget / control flow).
 
 ---
 
@@ -210,14 +206,9 @@ Node-to-role mapping:
 - `execute_bookings` → main (highest fault-tolerance requirement)
 - `send_notification` → fast
 
-### 7. Prompt caching (Anthropic)
+### 7. Concurrent plan generation + timeouts
 
-The `generate_plans` system prompt is ~1500 tokens; on replan it hits the cache and input-token cost drops to ~1/10:
-
-```python
-{"type": "text", "text": PLANNER_SYSTEM_PROMPT,
- "cache_control": {"type": "ephemeral"}}
-```
+The two comparable plans are generated **concurrently** — one independent structured call per plan via `asyncio` — roughly halving wall-clock latency for multi-day itineraries versus sequential generation. Each call carries a request timeout and a retry cap, so a single slow or stuck provider call can't hang the whole run.
 
 ### 8. FastAPI + SSE (frontend/backend)
 
@@ -283,10 +274,8 @@ class AgentState(TypedDict):
 - `check_availability(state)` → validates opening hours + reservation slots for each venue/restaurant in a plan (uses candidate data directly, no store lookup)
 
 ### Execution (called after user confirmation)
-- `book_venue_tickets(venue_id, time, count)` → ticketing
-- `make_restaurant_reservation(restaurant_id, time, party_size)` → reservation
-- `order_addon_service(type, location, delivery_time)` → cake / flowers
-- `send_message(recipient, content)` → notify friends/spouse
+- `execute_bookings(state)` → builds a `BookingResult` for each plan item (demo mode; swap in a real ordering/reservation API)
+- `send_trip_summary(...)` (`tools/notification.py`) → renders the shareable itinerary summary
 
 ---
 
@@ -317,7 +306,20 @@ POST /session                   create a planning session, returns session_id
 GET  /session/{id}/stream       SSE: agent node-execution progress
 POST /session/{id}/confirm      user confirms a plan, triggers execution
 GET  /session/{id}/result       fetch the full result and message text
+GET  /quota                     remaining daily plan quota (per IP / user)
+GET  /auth/github/login         GitHub OAuth login (redirect)
+GET  /auth/github/callback      OAuth callback → issues a session token
+GET  /auth/me                   current login state
 ```
+
+## Deployment & security
+
+- **Frontend** on GitHub Pages (Next.js static export), **backend** on Render (Docker); API keys live only in backend env vars, never in the browser.
+- **Auth**: GitHub OAuth — the backend issues a signed token, the frontend sends it as `Authorization: Bearer` (robust across origins, avoids third-party cookies).
+- **Rate limiting** (per IP when anonymous, per user when logged in): anonymous 1 plan/day + ≤3 replans per plan; logged-in 3 plans/day + ≤9 replans — returns `429` over the limit.
+- **CORS** locked to the frontend origin in production; **Docker** images + **GitHub Actions CI** (backend `ruff`+`pytest`, frontend `tsc`+`eslint`+`build`, image build).
+
+See [deployment.md](deployment.md) for the full setup.
 
 ---
 
@@ -335,7 +337,7 @@ GET  /session/{id}/result       fetch the full result and message text
 | POI data | maps REST API | real venue/restaurant retrieval |
 | Fallback data | JSON fixtures | when the API is unavailable |
 | LLM access | LangChain multi-provider | main/fast tiers |
-| Observability | LangSmith | end-to-end traces |
+| Observability | LangSmith (via LangChain) | enable with `LANGCHAIN_TRACING_V2` |
 
 ---
 
@@ -347,7 +349,6 @@ GET  /session/{id}/result       fetch the full result and message text
 | Plan-and-Execute | Wang et al. 2023 + LangGraph tutorials |
 | Lost-in-the-middle | Liu et al. 2023 |
 | Structured output | instructor-ai (Jason Liu) |
-| Prompt caching | Anthropic API docs |
 | Human-in-the-loop | LangGraph docs, `interrupt()` |
 | Explicit scoring over LLM ranking | MT-Bench interpretability (Zheng et al. 2023) |
 | ReAct failure rate in multi-constraint planning (counter-evidence) | Xie et al. *TravelPlanner* ICML 2024 |

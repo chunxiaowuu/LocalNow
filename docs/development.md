@@ -184,7 +184,7 @@ Small, focused modules with separated concerns:
 
 These are pure/deterministic functions or thin HTTP wrappers, so they're easy to unit-test (mocking only the outermost HTTP call). Availability is checked inline in the graph against the candidate data; booking is handled inline in the `execute_bookings` node, which builds `BookingResult` objects directly (demo mode — swap in a real ordering API without touching the graph).
 
-See [architecture.md](architecture.md) for the full tool catalog. Test coverage: 131 passing tests (see [tests/README.md](../backend/tests/README.md)).
+See [architecture.md](architecture.md) for the full tool catalog. Test coverage: 102 passing tests (see [tests/README.md](../backend/tests/README.md)).
 
 ---
 

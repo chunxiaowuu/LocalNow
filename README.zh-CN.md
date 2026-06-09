@@ -4,7 +4,7 @@
 
 面向本地生活场景的短时活动**规划与执行** Agent。
 
-接收一句口语目标——*"今天下午带老婆孩子 / 朋友出去玩几个小时，别太远，帮我安排"*——输出**可对比、可执行**的多环节行程（玩 → 吃 → 活动），用户确认后**一键完成关键预订**并把计划**分享给同伴**。
+接收一句口语目标——*"今天下午带老婆孩子 / 朋友出去玩几个小时，别太远，帮我安排"*——输出**可对比、可执行**的多环节行程（玩 → 吃 → 活动），用户确认后**一键打开全部预订**并把计划**分享给同伴**。
 
 不是搜索推荐，是"帮你把事情做完"。
 
@@ -18,7 +18,8 @@
 - ❄️ **冷门诉求语义降级**：找不到"某家拉面馆 / 莫奈特展"时，LLM 产出"具体→宽泛"检索阶梯逐级降级到相近人气候选，并向用户说明。
 - ⚡ **并发单方案生成**：多日行程墙钟耗时约提速 2 倍；请求超时 + 重试上限，防止单次调用卡死。
 - ✅ **确认后行程清单**：按天勾选"已完成 / 已预订"（localStorage 持久化）、**一键打开全部预订页**、复制 / 导出 PDF / 邮件分享。
-- 🔌 **多模型 Provider 抽象**（Gemini / LongCat / OpenAI / DeepSeek / Ollama，改 `.env` 即切换）；**Docker + GitHub Actions CI**。
+- 🔌 **多模型 Provider 抽象**（Gemini / LongCat / OpenAI / DeepSeek / Ollama，改 `.env` 即切换）。
+- 🔒 **可部署且有防护**：GitHub OAuth 登录 + 按用户的每日限流（超额 `429`）；**Docker + GitHub Actions CI**；可部署到 Render（后端）+ GitHub Pages（前端）。
 
 ## 工作流（LangGraph，确定性编排 + 人在环路）
 
@@ -42,7 +43,7 @@ LocalNow/
 │   ├── data/         # 本地 mock 数据（无 API Key 时兜底）
 │   ├── prompts/      # Prompt 模板
 │   ├── api/          # FastAPI 入口（SSE 流式进度）
-│   └── tests/        # 单元测试（131 个）
+│   └── tests/        # 单元测试（102 个）
 ├── frontend/         # Next.js 16 前端（表单 / 实时进度 / 方案对比 / 行程清单）
 ├── docs/             # design / architecture / development / deployment
 └── docker-compose.yml + .github/workflows/ci.yml
