@@ -16,12 +16,7 @@
 
 ## 系统本质判断
 
-参考 Anthropic *Building Effective Agents*（2024.12）的 Workflow vs Agent 区分：
-
-**本系统是 Workflow，不是自主 Agent。**
-
-原因：执行路径可枚举、步骤可预测、有强制人工确认节点。  
-LLM 负责语义理解和创意规划，工具负责所有需要精确性的事情（可用性/距离/价格），两者职责严格划分。
+LocalNow 是一个规划 **Agent**，但实现为确定性的 **Workflow**（步骤顺序由 LangGraph 状态图固定），而非自主选择工具的 ReAct Agent——这是出于可靠性的刻意选择（见下文 TravelPlanner 对比）。LLM 负责语义理解、创意规划与重规划权衡；需要精确性的部分（可用性/距离/预算/控制流）全部交给代码。
 
 ---
 
@@ -211,14 +206,9 @@ Gemini 通过 Google AI Studio OpenAI 兼容接口接入，使用 `ChatOpenAI` +
 - `execute_bookings` → main（容错要求最高）
 - `send_notification` → fast
 
-### 7. Prompt Caching（Anthropic）
+### 7. 并发方案生成 + 超时
 
-`generate_plans` 的 system prompt 约 1500 tokens，重规划时命中缓存，input token 费用降至 1/10：
-
-```python
-{"type": "text", "text": PLANNER_SYSTEM_PROMPT,
- "cache_control": {"type": "ephemeral"}}
-```
+两个可对比方案**并发**生成——每个方案一次独立的结构化调用（`asyncio`），相比串行生成把多日行程的墙钟耗时约缩短一半。每次调用带请求超时与重试上限，单次慢/卡住的 provider 调用不会拖垮整轮执行。
 
 ### 8. FastAPI + SSE（前后端通信）
 
@@ -284,10 +274,8 @@ class AgentState(TypedDict):
 - `check_availability(state)` → 对方案中每个场所/餐厅做营业时间 + 预约时段验证（直接用候选数据，不查 store）
 
 ### 执行类（用户确认后调用）
-- `book_venue_tickets(venue_id, time, count)` → 购票
-- `make_restaurant_reservation(restaurant_id, time, party_size)` → 订座
-- `order_addon_service(type, location, delivery_time)` → 蛋糕/鲜花
-- `send_message(recipient, content)` → 通知朋友/老婆
+- `execute_bookings(state)` → 为方案每个环节构造 `BookingResult`（演示模式；可替换为真实下单/预约 API）
+- `send_trip_summary(...)`（`tools/notification.py`）→ 渲染可分享的行程摘要
 
 ---
 
@@ -337,7 +325,20 @@ POST /session                   创建规划会话，返回 session_id
 GET  /session/{id}/stream       SSE 流：Agent 节点执行进度
 POST /session/{id}/confirm      用户确认方案，触发执行阶段
 GET  /session/{id}/result       获取完整结果和消息文本
+GET  /quota                     当日剩余规划额度（按 IP / 用户）
+GET  /auth/github/login         GitHub OAuth 登录（跳转）
+GET  /auth/github/callback      OAuth 回调 → 签发会话 token
+GET  /auth/me                   当前登录态
 ```
+
+## 部署与安全
+
+- **前端** 在 GitHub Pages（Next.js 静态导出），**后端** 在 Render（Docker）；API 密钥只存后端环境变量，永不下发浏览器。
+- **登录**：GitHub OAuth——后端签发签名 token，前端以 `Authorization: Bearer` 携带（跨域稳，避开第三方 cookie）。
+- **限流**（未登录按 IP、登录按用户）：未登录每天 1 个 plan + 每个 plan ≤3 次重规划；登录每天 3 个 + ≤9 次——超限返回 `429`。
+- **CORS** 生产环境锁定前端来源；**Docker** 镜像 + **GitHub Actions CI**（后端 `ruff`+`pytest`，前端 `tsc`+`eslint`+`build`，镜像构建）。
+
+完整步骤见 [deployment.zh-CN.md](deployment.zh-CN.md)。
 
 ---
 
@@ -355,7 +356,7 @@ GET  /session/{id}/result       获取完整结果和消息文本
 | POI 数据 | 高德地图 REST API | 真实场所/餐厅召回 |
 | Fallback 数据 | JSON fixtures | API 不可用时兜底 |
 | LLM 接入 | LangChain 多 provider | main/fast 双档 |
-| 可观测性 | LangSmith | 全链路 trace |
+| 可观测性 | LangSmith（经 LangChain） | 设 `LANGCHAIN_TRACING_V2` 开启 |
 
 ---
 
@@ -367,7 +368,6 @@ GET  /session/{id}/result       获取完整结果和消息文本
 | Plan-and-Execute 模式 | Wang et al. 2023 + LangGraph 官方教程 |
 | Lost in the middle 问题 | Liu et al. 2023 |
 | 结构化输出 validation-retry | instructor-ai (Jason Liu) |
-| Prompt Caching | Anthropic API 文档 |
 | Human-in-the-loop | LangGraph 官方文档 interrupt() |
 | 显式打分优于 LLM 排序 | MT-Bench 可解释性要求（Zheng et al. 2023）|
 | ReAct 在多约束规划中的失败率（反面证据） | Xie et al. *TravelPlanner* ICML 2024 |

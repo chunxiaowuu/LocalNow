@@ -185,7 +185,7 @@ def reassign_ids(data, prefix):
 
 这些都是纯/确定性函数或薄 HTTP 封装，易于单测（只 mock 最外层 HTTP 调用）。可用性检查在图里基于候选数据内联完成；预订在 `execute_bookings` 节点内联处理，直接构造 `BookingResult`（演示模式——接入真实下单 API 时无需改动图）。
 
-完整工具清单见 [architecture.zh-CN.md](architecture.zh-CN.md)。测试覆盖：131 个用例（见 [tests/README.zh-CN.md](../backend/tests/README.zh-CN.md)）。
+完整工具清单见 [architecture.zh-CN.md](architecture.zh-CN.md)。测试覆盖：102 个用例（见 [tests/README.zh-CN.md](../backend/tests/README.zh-CN.md)）。
 
 ---
 

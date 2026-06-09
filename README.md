@@ -4,7 +4,7 @@
 
 A short-horizon local activity **planning and execution** agent.
 
-Give it one casual goal — *"This afternoon I want to take my wife and kid (or some friends) out for a few hours, nothing too far, plan it for me"* — and it returns **comparable, executable** multi-step itineraries (play → eat → activity), then **completes the key bookings in one click** after you confirm and lets you **share the plan** with your companions.
+Give it one casual goal — *"This afternoon I want to take my wife and kid (or some friends) out for a few hours, nothing too far, plan it for me"* — and it returns **comparable, executable** multi-step itineraries (play → eat → activity), then — once you confirm — **opens all the bookings in one click** and lets you **share the plan** with your companions.
 
 Not search-and-recommend, but "get it done for you."
 
@@ -18,7 +18,8 @@ Not search-and-recommend, but "get it done for you."
 - ❄️ **Semantic degradation for long-tail requests**: when an exact match (e.g. "a specific ramen shop" or "a Monet exhibition") isn't found, the LLM produces a "specific → broad" retrieval ladder that gracefully falls back to the closest popular candidates, and tells the user.
 - ⚡ **Concurrent per-plan generation**: roughly 2× faster wall-clock for multi-day itineraries; per-request timeout + retry cap prevent a single call from hanging.
 - ✅ **Post-confirmation itinerary checklist**: per-day "done / booked" checkboxes (persisted in localStorage), **open all booking pages in one click**, copy / export PDF / share by email.
-- 🔌 **Multi-provider LLM abstraction** (Gemini / LongCat / OpenAI / DeepSeek / Ollama, switch via `.env`); **Docker + GitHub Actions CI**.
+- 🔌 **Multi-provider LLM abstraction** (Gemini / LongCat / OpenAI / DeepSeek / Ollama, switch via `.env`).
+- 🔒 **Deploy-ready & guarded**: GitHub OAuth login + per-user daily rate limits (`429` over quota); **Docker + GitHub Actions CI**; deployable to Render (backend) + GitHub Pages (frontend).
 
 ## Workflow (LangGraph: deterministic orchestration + human-in-the-loop)
 
@@ -42,7 +43,7 @@ LocalNow/
 │   ├── data/         # Local mock data (fallback when no API key)
 │   ├── prompts/      # Prompt templates
 │   ├── api/          # FastAPI entry (SSE streaming progress)
-│   └── tests/        # Unit tests (131)
+│   └── tests/        # Unit tests (102)
 ├── frontend/         # Next.js 16 frontend (form / live progress / plan comparison / checklist)
 ├── docs/             # design.md / architecture.md / development.md / deployment.md
 └── docker-compose.yml + .github/workflows/ci.yml
