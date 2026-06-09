@@ -102,5 +102,5 @@ GitHub Actions（`.github/workflows/ci.yml`）在 push 到 main 和所有 PR 上
 
 - [设计文档 design.zh-CN.md](docs/design.zh-CN.md)：Planning 策略 / 工具调用链路（含 Tool + Mock 表）/ 异常处理机制
 - [架构设计 architecture.zh-CN.md](docs/architecture.zh-CN.md)：技术选型与设计决策
-- [开发记录 development.zh-CN.md](docs/development.zh-CN.md) · [问题记录 troubleshooting.zh-CN.md](docs/troubleshooting.zh-CN.md)
+- [开发记录 development.zh-CN.md](docs/development.zh-CN.md)
 - [部署指南 deployment.zh-CN.md](docs/deployment.zh-CN.md) · 测试说明：[backend/tests/README.zh-CN.md](backend/tests/README.zh-CN.md)
